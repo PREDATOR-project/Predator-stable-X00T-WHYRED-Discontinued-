@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -873,9 +873,6 @@ static void msm_isp_sync_dual_cam_frame_id(
 				ms_res->src_info[i]->dual_hw_ms_info.index);
 		}
 	}
-	/* the number of frames that are dropped */
-	vfe_dev->isp_page->dual_cam_drop =
-				frame_id - (src_info->frame_id + 1);
 	ms_res->active_src_mask |= (1 << src_info->dual_hw_ms_info.index);
 	src_info->frame_id = frame_id;
 	src_info->dual_hw_ms_info.sync_state = MSM_ISP_DUAL_CAM_SYNC;
@@ -913,8 +910,6 @@ void msm_isp_increment_frame_id(struct vfe_device *vfe_dev,
 				src_info->dual_hw_ms_info.index)) {
 				pr_err_ratelimited("Frame out of sync on vfe %d\n",
 					vfe_dev->pdev->id);
-				/* Notify to do reconfig at SW sync drop*/
-				vfe_dev->isp_page->dual_cam_drop_detected = 1;
 				/*
 				 * set this isp as async mode to force
 				 *it sync again at the next sof
@@ -2112,7 +2107,8 @@ static void msm_isp_handle_done_buf_frame_id_mismatch(
 		ret = vfe_dev->buf_mgr->ops->buf_done(vfe_dev->buf_mgr,
 			buf->bufq_handle, buf->buf_idx, time_stamp,
 			frame_id,
-			stream_info->runtime_output_format);
+			stream_info->runtime_output_format,
+			VB2_BUF_STATE_ERROR);
 	if (ret == -EFAULT) {
 		msm_isp_halt_send_error(vfe_dev, ISP_EVENT_BUF_FATAL_ERROR);
 		return;
@@ -2190,7 +2186,8 @@ static int msm_isp_process_done_buf(struct vfe_device *vfe_dev,
 				vfe_dev->buf_mgr,
 				buf->bufq_handle, buf->buf_idx,
 				time_stamp, frame_id,
-				stream_info->runtime_output_format);
+				stream_info->runtime_output_format,
+				VB2_BUF_STATE_DONE);
 
 		if (rc == -EFAULT) {
 			msm_isp_halt_send_error(vfe_dev,
@@ -2257,8 +2254,9 @@ static int msm_isp_process_done_buf(struct vfe_device *vfe_dev,
 			MSM_ISP_BUFFER_STATE_PUT_BUF;
 		buf->buf_debug.put_state_last ^= 1;
 		rc = vfe_dev->buf_mgr->ops->buf_done(vfe_dev->buf_mgr,
-		 buf->bufq_handle, buf->buf_idx, time_stamp,
-		 frame_id, stream_info->runtime_output_format);
+			buf->bufq_handle, buf->buf_idx, time_stamp,
+			frame_id, stream_info->runtime_output_format,
+			VB2_BUF_STATE_DONE);
 		if (rc == -EFAULT) {
 			msm_isp_halt_send_error(vfe_dev,
 					ISP_EVENT_BUF_FATAL_ERROR);
@@ -3546,7 +3544,8 @@ static int msm_isp_return_empty_buffer(struct vfe_device *vfe_dev,
 	rc = vfe_dev->buf_mgr->ops->buf_done(vfe_dev->buf_mgr,
 		buf->bufq_handle, buf->buf_idx,
 		&timestamp.buf_time, frame_id,
-		stream_info->runtime_output_format);
+		stream_info->runtime_output_format,
+		VB2_BUF_STATE_ERROR);
 	if (rc == -EFAULT) {
 		msm_isp_halt_send_error(vfe_dev,
 			ISP_EVENT_BUF_FATAL_ERROR);
