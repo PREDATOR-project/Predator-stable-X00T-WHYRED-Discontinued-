@@ -29,6 +29,8 @@ j-$(CONFIG_CPU_FREQ_GOV_ALESSA) 	+= cpufreq_alessa.o
 # CPU Input Boost
 obj-$(CONFIG_CPU_INPUT_BOOST)		+= cpu_input_boost.o
 
+obj-$(CONFIG_CPU_BOOST)			+= cpu-boost.o
+
 obj-$(CONFIG_CPUFREQ_DT)		+= cpufreq-dt.o
 
 ##################################################################################
