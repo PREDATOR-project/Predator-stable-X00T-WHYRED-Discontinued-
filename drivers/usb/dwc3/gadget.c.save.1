@@ -201,8 +201,10 @@ int dwc3_gadget_resize_tx_fifos(struct dwc3 *dwc, struct dwc3_ep *dep)
 			|| usb_endpoint_xfer_isoc(dep->endpoint.desc))
 		mult = 3;
 
-	if ((dep->endpoint.maxburst > 2) &&
+<<<<<<< HEAD
+	if ((	if ((dep->endpoint.maxburst > 2) &&
 			dep->endpoint.ep_type == EP_TYPE_GSI)
+>>>>>>> 9b0394e97b73... dwc3: gadget: Increase TXFIFO size as 6KB for GSI IN endpoint
 		mult = 6;
 
 	tmp = ((max_packet + mdwidth) * mult) + mdwidth;
