@@ -655,11 +655,23 @@ config MAX_BOOST_FREQ_PERF
 
 endif
 
+config CPU_UNDERCLOCK_FREQ_HP
+	int "Performance cluster underclock freq"
+	default "0"
+	help
+	  CPU underclock frequency for the performance CPU cluster.
+
+config CPU_UNDERCLOCK_FREQ_LP
+	int "Low-power cluster underclock freq"
+	default "0"
+	help
+	  CPU underclock frequency for the low-power CPU cluster.
+	
 config CPU_FREQ_GOV_SCHEDHORIZON
 	bool "'schedhorizon' cpufreq policy governor"
 	depends on CPU_FREQ && SMP
 	select CPU_FREQ_GOV_ATTR_SET
-	select IRQ_WORK
+	select IRQ_WORK	
 	help
 	  This is a modified version of schedutil, introducing two new tunables: 
           "efficient_freq" and "up_delay".
