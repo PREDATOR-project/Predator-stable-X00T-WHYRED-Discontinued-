@@ -1092,7 +1092,7 @@ fb_blank(struct fb_info *info, int blank)
 EXPORT_SYMBOL(fb_blank);
 
 #ifdef CONFIG_MACH_ASUS_X00T
-bool lcd_suspend_flag;
+bool lcd_suspend_flag = false;
 #endif
 
 static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
@@ -1133,10 +1133,6 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			return -ENODEV;
 		}
 		info->flags |= FBINFO_MISC_USEREVENT;
-#ifdef CONFIG_MACH_ASUS_X00T
-		if (arg == FB_BLANK_POWERDOWN)
-			lcd_suspend_flag = true;
-#endif
 		ret = fb_set_var(info, &var);
 		info->flags &= ~FBINFO_MISC_USEREVENT;
 		unlock_fb_info(info);
@@ -1147,7 +1143,7 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 	case FBIOGET_FSCREENINFO:
 		if (!lock_fb_info(info))
 			return -ENODEV;
-		memcpy(&fix, &info->fix, sizeof(fix));
+		fix = info->fix;
 		unlock_fb_info(info);
 
 		ret = copy_to_user(argp, &fix, sizeof(fix)) ? -EFAULT : 0;
@@ -1228,6 +1224,12 @@ static long do_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			return -ENODEV;
 		}
 		info->flags |= FBINFO_MISC_USEREVENT;
+#ifdef CONFIG_MACH_ASUS_X00T
+		if (arg == FB_BLANK_POWERDOWN) {
+			lcd_suspend_flag = true;
+			printk("[Display] FB_BLANK_POWERDOWN\n");
+		}
+#endif
 		ret = fb_blank(info, arg);
 		info->flags &= ~FBINFO_MISC_USEREVENT;
 		unlock_fb_info(info);
