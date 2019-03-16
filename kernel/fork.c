@@ -80,6 +80,7 @@
 #include <linux/kcov.h>
 #include <linux/cpufreq.h>
 #include <linux/cpu_input_boost.h>
+#include <linux/boost_control.h>
 
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
@@ -1781,6 +1782,8 @@ struct task_struct *fork_idle(int cpu)
 	return task;
 }
 
+
+
 /*
  *  Ok, this is the main fork-routine.
  *
@@ -1798,11 +1801,9 @@ long _do_fork(unsigned long clone_flags,
 	int trace = 0;
 	long nr;
 
-	/* Boost CPU to the max for 50 ms when userspace launches an app */
-	if (task_is_zygote(current)) {
-		cpu_input_boost_kick_max(50);
-	}
-
+	if (app_launch_boost_ms && is_zygote_pid(current->pid)) {
+		cpu_input_boost_kick_max(app_launch_boost_ms);
+    }
 	/*
 	 * Determine whether and which event to report to ptracer.  When
 	 * called from kernel_thread or CLONE_UNTRACED is explicitly
