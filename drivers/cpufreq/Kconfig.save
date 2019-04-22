@@ -597,7 +597,8 @@ config CPU_FREQ_GOV_DARKNESSSCHED
 
 	  If in doubt, say N.
 
-config CPU_INPUT_BOOST
+=======
+>>>>>>> cf48411c3034... cpu_input_boost: Introduce driver for econfig CPU_INPUT_BOOST
 	bool "CPU Input Boost"
 	help
 	  Boosts the CPU on touchscreen and touchpad input, and allows for
@@ -621,6 +622,20 @@ config WAKE_BOOST_DURATION_MS
 	help
 	  Wake boost duration in milliseconds.
 
+config INPUT_BOOST_FREQ_LP
+	int "Low-power cluster boost freq"
+	default "0"
+	help
+	  Input boost frequency for the low-power CPU cluster.
+
+config INPUT_BOOST_FREQ_PERF
+	int "Performance cluster boost freq"
+	default "0"
+	help
+	  Input boost frequency for the performance CPU cluster.
+
+<<<<<<< HEAD
+=======
 config MAX_BOOST_FREQ_LP
 	int "Low-power cluster max-boost freq"
 	default "0"
@@ -633,6 +648,7 @@ config MAX_BOOST_FREQ_PERF
 	help
 	  Max-boost frequency for the performance CPU cluster.
 
+>>>>>>> cf48411c3034... cpu_input_boost: Introduce driver for event-based CPU boosting
 endif
 
 comment "CPU frequency scaling drivers"
