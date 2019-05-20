@@ -824,6 +824,8 @@ static int fg_get_msoc(struct fg_chip *chip, int *msoc)
 
 	if (*msoc >= FULL_CAPACITY)
 		*msoc = FULL_CAPACITY;
+
+
 	return 0;
 }
 
