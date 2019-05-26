@@ -1,4 +1,5 @@
-/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2019 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -36,6 +37,12 @@
 #include "mdss_dsi_phy.h"
 #include "mdss_dba_utils.h"
 #include "dsi_access.h"
+
+#ifdef CONFIG_STATE_NOTIFIER
+#include <linux/state_notifier.h>
+#endif
+
+#include "mdss_livedisplay.h"
 
 #define CMDLINE_DSI_CTL_NUM_STRING_LEN 2
 
@@ -723,17 +730,20 @@ static int mdss_dsi_panel_power_ctrl(struct mdss_panel_data *pdata,
 		if ((pinfo->panel_power_state != MDSS_PANEL_POWER_LCD_DISABLED)
 		     && (pinfo->panel_power_state != MDSS_PANEL_POWER_OFF))
 			ret = mdss_dsi_panel_power_off(pdata);
+#ifdef CONFIG_STATE_NOTIFIER
+		state_suspend();
+#endif
 		break;
 	case MDSS_PANEL_POWER_ON:
 		if (mdss_dsi_is_panel_on_lp(pdata))
 			ret = mdss_dsi_panel_power_lp(pdata, false);
-		else {
-			if(ESD_TE_status) {
+		else{
+			if(ESD_TE_status){
 				ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 							panel_data);
 
 				ret = mdss_dsi_panel_reset(pdata, 0);
-				if(ret) {
+				if(ret){
 					pr_warn("%s: Panel reset failed. rc=%d\n", __func__, ret);
 					ret = 0;
 				}
@@ -766,6 +776,10 @@ static int mdss_dsi_panel_power_ctrl(struct mdss_panel_data *pdata,
 			}
 			ret = mdss_dsi_panel_power_on(pdata);
 		}
+
+#ifdef CONFIG_STATE_NOTIFIER
+		state_resume();
+#endif
 		break;
 	case MDSS_PANEL_POWER_LP1:
 	case MDSS_PANEL_POWER_LP2:
@@ -1748,9 +1762,9 @@ static int mdss_dsi_update_panel_config(struct mdss_dsi_ctrl_pdata *ctrl_pdata,
 	} else {	/*video mode*/
 		pinfo->mipi.mode = DSI_VIDEO_MODE;
 		pinfo->type = MIPI_VIDEO_PANEL;
-		pinfo->mipi.vsync_enable = 0;
-		pinfo->mipi.hw_vsync_mode = 0;
-		pinfo->partial_update_enabled = 0;
+		pinfo->mipi.vsync_enable = 1;
+		pinfo->mipi.hw_vsync_mode = 1;
+		pinfo->partial_update_enabled = pinfo->partial_update_supported;
 	}
 
 	ctrl_pdata->panel_mode = pinfo->mipi.mode;
@@ -1771,7 +1785,7 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 		pr_err("%s: Invalid input data\n", __func__);
 		return -EINVAL;
 	}
-
+        printk("mdss_dsi_on\n");	
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 
@@ -1880,103 +1894,103 @@ int mdss_dsi_set_gamma(struct mdss_dsi_ctrl_pdata *ctrl,int val2)
 		return -EINVAL;
 	}
 
-    if(val2 == 1) {
+    if(val2 == 1){
 
-    } else if(val2 == 2) {
+    }else if(val2 == 2){
 		printk("guorui: %s ,download default gamma,line %d \n",__func__,__LINE__);
 		if (ctrl->gamma0_cmds.cmd_cnt){
 			mdss_dsi_panel_cmds_send(ctrl, &ctrl->gamma0_cmds,CMD_REQ_COMMIT);
 			printk("guorui: %s ,gamma0,line %d \n",__func__,__LINE__);
             return 0;
 		}	
-    } else {
+    }else{
         pr_err("%s:val2 not available\n",__func__);
 		return -EINVAL;
     }
     
 	mdss_dsi_read_reg(ctrl,0xa1,&val0,&val1);
 
-    if(0 == val0 || 0 == val1) {
+    if(0 == val0 || 0 == val1){
         printk("guorui: %s please check reg 0xa1 ,val0:0x%x,val1:0x%x\n",__func__,val0,val1);
         return 0;
     }
 
-	if(val0 <= 0x8a && val0 >= 0x76) {
-		if(val1 <= 0x85 && val1 >= 0x71) {
+	if(val0 <= 0x8a && val0 >= 0x76){
+		if(val1 <= 0x85 && val1 >= 0x71){
 			printk("guorui: %s ,no need for gamma balance,line %d \n",__func__,__LINE__);
 			return 0;
-		} else if(val1 <= 0x6b && val1 >= 0x62) {
-			if (ctrl->gamma1_cmds.cmd_cnt) {
+		}else if(val1 <= 0x6b && val1 >= 0x62){
+			if (ctrl->gamma1_cmds.cmd_cnt){
 				mdss_dsi_panel_cmds_send(ctrl, &ctrl->gamma1_cmds,CMD_REQ_COMMIT);
 				printk("guorui: %s ,gamma1,line %d \n",__func__,__LINE__);
                 return 0;
 			}	
-		} else if(val1 <= 0x70 && val1 >= 0x6c) {
+		}else if(val1 <= 0x70 && val1 >= 0x6c){
 			if (ctrl->gamma2_cmds.cmd_cnt){
 				mdss_dsi_panel_cmds_send(ctrl, &ctrl->gamma2_cmds,CMD_REQ_COMMIT);
 				printk("guorui: %s ,gamma2,line %d \n",__func__,__LINE__);
                 return 0;
 			}
-		} else if(val1 <= 0x8a && val1 >= 0x86) {
+		}else if(val1 <= 0x8a && val1 >= 0x86){
 			if (ctrl->gamma3_cmds.cmd_cnt){
 				mdss_dsi_panel_cmds_send(ctrl, &ctrl->gamma3_cmds,CMD_REQ_COMMIT);
 				printk("guorui: %s ,gamma3,line %d \n",__func__,__LINE__);
                 return 0;
 			}
-		} else if(val1 <= 0x94 && val1 >= 0x8b) {
+		}else if(val1 <= 0x94 && val1 >= 0x8b){
 			if (ctrl->gamma4_cmds.cmd_cnt){
 				mdss_dsi_panel_cmds_send(ctrl, &ctrl->gamma4_cmds,CMD_REQ_COMMIT);
 				printk("guorui: %s ,gamma4,line %d \n",__func__,__LINE__);
                 return 0;
 			}
 		}
-	} else if(val0 <= 0x70 && val0 >= 0x67) {
+	}else if(val0 <= 0x70 && val0 >= 0x67){
 		if(val1 <= 0x6b && val1 >= 0x62){
-			if (ctrl->gamma9_cmds.cmd_cnt) {
+			if (ctrl->gamma9_cmds.cmd_cnt){
 				mdss_dsi_panel_cmds_send(ctrl, &ctrl->gamma9_cmds,CMD_REQ_COMMIT);
 				printk("guorui: %s ,gamma9,line %d \n",__func__,__LINE__);
                 return 0;
 			}	
-		} else if(val1 <= 0x70 && val1 >= 0x6c) {
+		}else if(val1 <= 0x70 && val1 >= 0x6c){
 			if (ctrl->gamma10_cmds.cmd_cnt){
 				mdss_dsi_panel_cmds_send(ctrl, &ctrl->gamma10_cmds,CMD_REQ_COMMIT);
 				printk("guorui: %s ,gamma10,line %d \n",__func__,__LINE__);
                 return 0;
 			}
-		} else if(val1 <= 0x8a && val1 >= 0x86) {
-			if (ctrl->gamma11_cmds.cmd_cnt) {
+		}else if(val1 <= 0x8a && val1 >= 0x86){
+			if (ctrl->gamma11_cmds.cmd_cnt){
 				mdss_dsi_panel_cmds_send(ctrl, &ctrl->gamma11_cmds,CMD_REQ_COMMIT);
 				printk("guorui: %s ,gamma11,line %d \n",__func__,__LINE__);
                 return 0;
 			}
-		} else if(val1 <= 0x94 && val1 >= 0x8b) {
-			if (ctrl->gamma12_cmds.cmd_cnt) {
+		}else if(val1 <= 0x94 && val1 >= 0x8b){
+			if (ctrl->gamma12_cmds.cmd_cnt){
 				mdss_dsi_panel_cmds_send(ctrl, &ctrl->gamma12_cmds,CMD_REQ_COMMIT);
 				printk("guorui: %s ,gamma12,line %d \n",__func__,__LINE__);
                 return 0;
 			}
 		}
-	} else if(val0 <= 0x75 && val0 >= 0x71) {
-		if(val1 <= 0x6b && val1 >= 0x62) {
-			if (ctrl->gamma13_cmds.cmd_cnt) {
+	}else if(val0 <= 0x75 && val0 >= 0x71){
+		if(val1 <= 0x6b && val1 >= 0x62){
+			if (ctrl->gamma13_cmds.cmd_cnt){
 				mdss_dsi_panel_cmds_send(ctrl, &ctrl->gamma13_cmds,CMD_REQ_COMMIT);
 				printk("guorui: %s ,gamma13,line %d \n",__func__,__LINE__);
                 return 0;
 			}	
-		}else if(val1 <= 0x70 && val1 >= 0x6c) {
-			if(ctrl->gamma14_cmds.cmd_cnt) {
+		}else if(val1 <= 0x70 && val1 >= 0x6c){
+			if (ctrl->gamma14_cmds.cmd_cnt){
 				mdss_dsi_panel_cmds_send(ctrl, &ctrl->gamma14_cmds,CMD_REQ_COMMIT);
 				printk("guorui: %s ,gamma14,line %d \n",__func__,__LINE__);
                 return 0;
 			}
-		} else if(val1 <= 0x8a && val1 >= 0x86) {
-			if(ctrl->gamma15_cmds.cmd_cnt) {
+		}else if(val1 <= 0x8a && val1 >= 0x86){
+			if (ctrl->gamma15_cmds.cmd_cnt){
 				mdss_dsi_panel_cmds_send(ctrl, &ctrl->gamma15_cmds,CMD_REQ_COMMIT);
 				printk("guorui: %s ,gamma15,line %d \n",__func__,__LINE__);
                 return 0;
 			}
-		} else if(val1 <= 0x94 && val1 >= 0x8b) {
-			if(ctrl->gamma16_cmds.cmd_cnt) {
+		}else if(val1 <= 0x94 && val1 >= 0x8b){
+			if (ctrl->gamma16_cmds.cmd_cnt){
 				mdss_dsi_panel_cmds_send(ctrl, &ctrl->gamma16_cmds,CMD_REQ_COMMIT);
 				printk("guorui: %s ,gamma16,line %d \n",__func__,__LINE__);
                 return 0;
@@ -2182,12 +2196,10 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 			ATRACE_END("dsi_panel_on");
 		}
 	}
-
-	if ((pdata->panel_info.type == MIPI_CMD_PANEL) &&
-		mipi->vsync_enable && mipi->hw_vsync_mode) {
+	if (mipi->vsync_enable && mipi->hw_vsync_mode) {
 		mdss_dsi_set_tear_on(ctrl_pdata);
 		if (mdss_dsi_is_te_based_esd(ctrl_pdata))
-			panel_update_te_irq(pdata, true);
+			enable_irq(gpio_to_irq(ctrl_pdata->disp_te_gpio));
 	}
 
 	ctrl_pdata->ctrl_state |= CTRL_STATE_PANEL_INIT;
@@ -2255,11 +2267,11 @@ static int mdss_dsi_blank(struct mdss_panel_data *pdata, int power_state)
 		}
 	}
 
-	if ((pdata->panel_info.type == MIPI_CMD_PANEL) &&
-		mipi->vsync_enable && mipi->hw_vsync_mode) {
+	if (mipi->vsync_enable && mipi->hw_vsync_mode) {
 		if (mdss_dsi_is_te_based_esd(ctrl_pdata)) {
-			panel_update_te_irq(pdata, false);
-			atomic_dec(&ctrl_pdata->te_irq_ready);
+				disable_irq(gpio_to_irq(
+					ctrl_pdata->disp_te_gpio));
+				atomic_dec(&ctrl_pdata->te_irq_ready);
 		}
 		mdss_dsi_set_tear_off(ctrl_pdata);
 	}
@@ -2674,7 +2686,7 @@ static int __mdss_dsi_dfps_update_clks(struct mdss_panel_data *pdata)
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 			panel_data);
 	if (IS_ERR_OR_NULL(ctrl_pdata)) {
-		pr_err("Invalid ctrl_pdata = %lu\n", PTR_ERR(ctrl_pdata));
+		pr_err("Invalid sctrl_pdata = %lu\n", PTR_ERR(ctrl_pdata));
 		return PTR_ERR(ctrl_pdata);
 	}
 
@@ -3665,6 +3677,9 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 					rc);
 		}
 		break;
+	case MDSS_EVENT_UPDATE_LIVEDISPLAY:
+		rc = mdss_livedisplay_update(ctrl_pdata, (int)(unsigned long) arg);
+		break;
 	default:
 		pr_debug("%s: unhandled event=%d\n", __func__, event);
 		break;
@@ -4192,6 +4207,9 @@ static int mdss_dsi_ctrl_probe(struct platform_device *pdev)
 		ctrl_pdata->bklt_ctrl = UNKNOWN_CTRL;
 	}
 
+	pm_qos_add_request(&ctrl_pdata->pm_qos_req, PM_QOS_CPU_DMA_LATENCY,
+			   PM_QOS_DEFAULT_VALUE);
+
 	rc = dsi_panel_device_register(pdev, dsi_pan_node, ctrl_pdata);
 	if (rc) {
 		pr_err("%s: dsi panel dev reg failed\n", __func__);
@@ -4238,9 +4256,7 @@ static int mdss_dsi_ctrl_probe(struct platform_device *pdev)
 
 	pdata = &ctrl_pdata->panel_data;
 	init_completion(&pdata->te_done);
-	mutex_init(&pdata->te_mutex);
-	if (pdata->panel_info.type == MIPI_CMD_PANEL) {
-		if (!te_irq_registered) {
+	if (!te_irq_registered) {
 			rc = devm_request_irq(&pdev->dev,
 				gpio_to_irq(pdata->panel_te_gpio),
 				test_hw_vsync_handler, IRQF_TRIGGER_FALLING,
@@ -4252,7 +4268,6 @@ static int mdss_dsi_ctrl_probe(struct platform_device *pdev)
 			te_irq_registered = 1;
 			disable_irq_nosync(gpio_to_irq(pdata->panel_te_gpio));
 		}
-	}
 
 	rc = mdss_dsi_get_bridge_chip_params(pinfo, ctrl_pdata, pdev);
 	if (rc) {
