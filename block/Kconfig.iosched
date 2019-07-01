@@ -141,6 +141,10 @@ config IOSCHED_ANXIETY
 	  essentiality in determining load-time latency.
 
 
+config IOSCHED_DEPRESSION
+	tristate "DEPRESSION I/O scheduler"
+	default y
+
 choice
 	prompt "Default I/O scheduler"
 	default DEFAULT_CFQ
@@ -191,11 +195,15 @@ choice
 	config DEFAULT_ZEN
 		bool "ZEN" if IOSCHED_ZEN=y
 
+
+	config DEFAULT_DEPRESSION
+		bool "Depression" if IOSCHED_DEPRESSION=y
 endchoice
 
 config DEFAULT_IOSCHED
 	string
 	default "deadline" if DEFAULT_DEADLINE
+	default "depression" if DEFAULT_DEPRESSION
 	default "cfq" if DEFAULT_CFQ
 	default "bfq" if DEFAULT_BFQ
 	default "anxiety" if DEFAULT_ANXIETY
