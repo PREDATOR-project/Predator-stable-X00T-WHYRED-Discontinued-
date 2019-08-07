@@ -619,16 +619,95 @@ boost_write(struct cgroup_subsys_state *css, struct cftype *cft,
 	return 0;
 }
 
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+static s64
+sched_boost_read(struct cgroup_subsys_state *css, struct cftype *cft)
+{
+	struct schedtune *st = css_st(css);
+
+	return st->sched_boost;
+}
+
+static int
+sched_boost_write(struct cgroup_subsys_state *css, struct cftype *cft,
+	    s64 sched_boost)
+{
+	struct schedtune *st = css_st(css);
+	st->sched_boost = sched_boost;
+
+	return 0;
+}
+
+static void
+boost_slots_init(struct schedtune *st)
+{
+	int i;
+	struct boost_slot *slot;
+
+	/* Initialize boost slots */
+	INIT_LIST_HEAD(&st->active_boost_slots.list);
+	INIT_LIST_HEAD(&st->available_boost_slots.list);
+
+	/* Populate available_boost_slots */
+	for (i = 0; i < DYNAMIC_BOOST_SLOTS_COUNT; ++i) {
+		slot = kmalloc(sizeof(*slot), GFP_KERNEL);
+		slot->idx = i;
+		list_add_tail(&slot->list, &st->available_boost_slots.list);
+	}
+}
+
+static void
+boost_slots_release(struct schedtune *st)
+{
+	struct boost_slot *slot, *next_slot;
+
+	list_for_each_entry_safe(slot, next_slot,
+				 &st->available_boost_slots.list, list) {
+		list_del(&slot->list);
+		kfree(slot);
+	}
+	list_for_each_entry_safe(slot, next_slot,
+				 &st->active_boost_slots.list, list) {
+		list_del(&slot->list);
+		kfree(slot);
+	}
+}
+#endif // CONFIG_DYNAMIC_STUNE_BOOST
+
+#ifdef CONFIG_STUNE_ASSIST
+static int boost_write_wrapper(struct cgroup_subsys_state *css,
+			struct cftype *cft, s64 boost)
+{
+	if (!strcmp(current->comm, "init"))
+		return 0;
+
+	boost_write(css, NULL, boost);
+
+	return 0;
+}
+
+static int prefer_idle_write_wrapper(struct cgroup_subsys_state *css,
+			struct cftype *cft, u64 prefer_idle)
+{
+	if (!strcmp(current->comm, "init"))
+		return 0;
+
+	prefer_idle_write(css, NULL, prefer_idle);
+
+	return 0;
+}
+#endif
+
 static struct cftype files[] = {
 	{
 		.name = "boost",
 		.read_s64 = boost_read,
-		.write_s64 = boost_write,
+		.write_s64 = boost_write_wrapper,
 	},
 	{
 		.name = "prefer_idle",
 		.read_u64 = prefer_idle_read,
-		.write_u64 = prefer_idle_write,
+		.write_u64 = prefer_idle_write_wrapper,
 	},
 	{ }	/* terminate */
 };
@@ -656,22 +735,22 @@ schedtune_boostgroup_init(struct schedtune *st)
 static void write_default_values(struct cgroup_subsys_state *css)
 {
 	u8 i;
-	char cg_name[11];
-	const int boost_values[4] = { 0, 1, 0, 0 };
-	const bool prefer_idle_values[4] = { 0, 1, 1, 0 };
-	const char *stune_groups[] =
-	{ "/", "top-app", "foreground", "background" };
+	struct groups_data {
+		char *name;
+		int boost;
+		bool prefer_idle;
+	};
+	struct groups_data groups[3] = {
+		{ "top-app",	5, 1 },
+		{ "foreground", 1, 1 },
+		{ "background", 0, 0 }};
 
-	/* Get the name of a group that was parsed */
-	cgroup_name(css->cgroup, cg_name, sizeof(cg_name));
-
-	for (i = 0; i < ARRAY_SIZE(stune_groups); i++) {
-		/* Look it up in the array and set values */
-		if (!memcmp(cg_name, stune_groups[i], sizeof(*stune_groups[i]))) {
-			boost_write(css, NULL, boost_values[i]);
-			prefer_idle_write(css, NULL, prefer_idle_values[i]);
-			pr_info("%s: setting %s to %i and %i\n",
-			__func__, stune_groups[i], boost_values[i], prefer_idle_values[i]);
+	for (i = 0; i < ARRAY_SIZE(groups); i++) {
+		if (!strcmp(css->cgroup->kn->name, groups[i].name)) {
+			pr_info("%s: %i - %i - %i - %i\n", groups[i].name,
+					groups[i].boost, groups[i].prefer_idle);
+			boost_write(css, NULL, groups[i].boost);
+			prefer_idle_write(css, NULL, groups[i].prefer_idle);
 		}
 	}
 }
@@ -692,18 +771,13 @@ schedtune_css_alloc(struct cgroup_subsys_state *parent_css)
 		return ERR_PTR(-ENOMEM);
 	}
 
-	/* Allow only a limited number of boosting groups */
+	for (idx = 1; idx < BOOSTGROUPS_COUNT; ++idx) {
+		if (!allocated_group[idx])
+			break;
 #ifdef CONFIG_STUNE_ASSIST
-	for (idx = 0; idx < BOOSTGROUPS_COUNT; ++idx) {
-		if (!allocated_group[idx])
-			break;
 		write_default_values(&allocated_group[idx]->css);
-	}
-#else
-	for (idx = 1; idx < BOOSTGROUPS_COUNT; ++idx)
-		if (!allocated_group[idx])
-			break;
 #endif
+	}
 	if (idx == BOOSTGROUPS_COUNT) {
 		pr_err("Trying to create more than %d SchedTune boosting groups\n",
 		       BOOSTGROUPS_COUNT);
