@@ -1464,7 +1464,6 @@ static int do_read_toc(struct fsg_common *common, struct fsg_buffhd *bh)
 	if (format == 2)
 		return _read_toc_raw(common, bh);
 
-
 	memset(buf, 0, 20);
 	buf[1] = (20-2);		/* TOC data length */
 	buf[2] = 1;			/* First track number */
@@ -2227,7 +2226,6 @@ static int do_scsi_command(struct fsg_common *common)
 		if (reply == 0)
 			reply = do_read_cd(common);
 		break;
-
 
 	case READ_FORMAT_CAPACITIES:
 		common->data_size_from_cmnd =
