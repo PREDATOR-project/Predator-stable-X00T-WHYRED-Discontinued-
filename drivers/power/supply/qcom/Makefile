@@ -10,6 +10,7 @@ obj-$(CONFIG_QPNP_SMB2)		+= step-chg-jeita.o battery.o qpnp-smb2.o smb-lib.o pmi
 obj-$(CONFIG_SMB138X_CHARGER)	+= battery.o smb138x-charger.o smb-lib.o pmic-voter.o storm-watch.o
 obj-$(CONFIG_QPNP_QNOVO)	+= battery.o qpnp-qnovo.o
 obj-$(CONFIG_QNS_SYSTEM)	+= qns_system.o
+obj-$(CONFIG_AUTOCUT_CHARGER)   += autocut_charger.o
 
 #TODO: remove me b/62058353
 subdir-ccflags-y += \
