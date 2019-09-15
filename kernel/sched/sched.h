@@ -2103,6 +2103,7 @@ walt_task_in_cum_window_demand(struct rq *rq, struct task_struct *p)
 #else /* arch_scale_freq_capacity */
 #define arch_scale_freq_invariant()     (false)
 #endif
+
 #ifdef CONFIG_SMP
 static inline void sched_irq_work_queue(struct irq_work *work)
 {
