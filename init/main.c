@@ -162,7 +162,6 @@ static int __init set_miui_rom(int *val)
 	return 0;
 }
 __setup("androidboot.miui=", set_miui_rom);
-
 /*
  * Used to generate warnings if static_key manipulation functions are used
  * before jump_label_init is called.
