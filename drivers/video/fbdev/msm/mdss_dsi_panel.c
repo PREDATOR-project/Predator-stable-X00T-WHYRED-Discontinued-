@@ -1079,18 +1079,18 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	if (on_cmds->cmd_cnt)
 		mdss_dsi_panel_cmds_send(ctrl, on_cmds, CMD_REQ_COMMIT);
 
-	if(ce_state==14){
+	if(ce_state == 1){
 	   if (ce_on_cmds->cmd_cnt)
 	       mdss_dsi_panel_cmds_send(ctrl,ce_on_cmds, CMD_REQ_COMMIT);
 	}
-	if(11 == srgb_state){
+	if(srgb_state == 1){
 	   if (srgb_on_cmds->cmd_cnt)
 	       mdss_dsi_panel_cmds_send(ctrl,srgb_on_cmds, CMD_REQ_COMMIT);
 	} else if ((srgb_state == 2) && (!miuirom) && (srgb_enabled == 1)) {
 		if (srgb_off_cmds->cmd_cnt)
 			mdss_dsi_panel_cmds_send(ctrl,srgb_off_cmds, CMD_REQ_COMMIT);
 	}
-	if(11 == cabc_state){
+	if(cabc_state == 1){
 		if (cabc_on_cmds->cmd_cnt)
 	       mdss_dsi_panel_cmds_send(ctrl,cabc_on_cmds, CMD_REQ_COMMIT);
 	}
