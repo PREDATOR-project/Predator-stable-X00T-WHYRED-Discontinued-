@@ -4120,9 +4120,15 @@ static int fg_psy_set_property(struct power_supply *psy,
 		if (rc < 0)
 			pr_err("Error in saving learned_cc_uah, rc=%d\n", rc);
 		break;
+#ifdef CONFIG_KERNEL_CUSTOM_E7S
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
+		if (pval->intval <= 0 || pval->intval > ((chip->cl.nom_cap_uah > 4000000) ? chip->cl.nom_cap_uah : 4000000)) {
+			pr_err("charge_full_design is out of bounds\n");
+			return -EINVAL;
+		}
 		chip->cl.nom_cap_uah = pval->intval;
 		break;
+#endif
 	case POWER_SUPPLY_PROP_COLD_TEMP:
 		rc = fg_set_jeita_threshold(chip, JEITA_COLD, pval->intval);
 		if (rc < 0) {
@@ -4167,7 +4173,9 @@ static int fg_property_is_writeable(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CC_STEP:
 	case POWER_SUPPLY_PROP_CC_STEP_SEL:
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
+#ifdef CONFIG_KERNEL_CUSTOM_E7S
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
+#endif
 	case POWER_SUPPLY_PROP_COLD_TEMP:
 	case POWER_SUPPLY_PROP_COOL_TEMP:
 	case POWER_SUPPLY_PROP_WARM_TEMP:
