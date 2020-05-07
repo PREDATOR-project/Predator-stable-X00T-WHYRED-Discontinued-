@@ -28,17 +28,41 @@
 #include "smb-lib.h"
 #include "storm-watch.h"
 #include <linux/pmic-voter.h>
-#ifdef CONFIG_MACH_ASUS_X00T
-#include <linux/of_gpio.h>
-#include <linux/wakelock.h>
-#include <linux/uaccess.h>
-#include <linux/proc_fs.h>
-#include <asm-generic/errno-base.h>
-#include <linux/qpnp/qpnp-adc.h>
+
+#ifdef THERMAL_CONFIG_FB
+#include <linux/notifier.h>
+#include <linux/fb.h>
+
+union power_supply_propval lct_therm_lvl_reserved;
+union power_supply_propval lct_therm_level;
+#if defined(CONFIG_KERNEL_CUSTOM_E7S)
+union power_supply_propval lct_therm_call_level = {4,};
+#else
+union power_supply_propval lct_therm_call_level = {3,};
+#endif
+#if defined(CONFIG_KERNEL_CUSTOM_E7S)
+union power_supply_propval lct_therm_globe_level = {1,};
+union power_supply_propval lct_therm_india_level = {2,};
+#else
+union power_supply_propval lct_therm_globe_level = {2,};
+union power_supply_propval lct_therm_india_level = {1,};
+#endif
+
+bool lct_backlight_off;
+int LctIsInCall = 0;
+int LctThermal =0;
+extern int hwc_check_india;
+extern int hwc_check_global;
+extern bool is_poweroff_charge;
 #endif
 
 #define SMB2_DEFAULT_WPWR_UW	8000000
 
+#ifdef CONFIG_CHARGER_RUNIN
+static int BatteryTestStatus_enable = 0;
+static bool charger_enable = true;
+void runin_work(struct smb_charger *chip,union power_supply_propval *value);
+#endif
 static struct smb_params v1_params = {
 	.fcc			= {
 		.name	= "fast charge current",
@@ -187,19 +211,7 @@ struct smb2 {
 	bool			bad_part;
 };
 
-#ifdef CONFIG_MACH_ASUS_X00T
-struct smb_charger *smbchg_dev;
-struct timespec last_jeita_time;
-struct wake_lock asus_chg_lock;
-extern void smblib_asus_monitor_start(struct smb_charger *chg, int time);
-extern bool asus_get_prop_usb_present(struct smb_charger *chg);
-extern void asus_smblib_stay_awake(struct smb_charger *chg);
-extern void asus_smblib_relax(struct smb_charger *chg);
-/* global gpio_control */
-struct gpio_control *global_gpio;
-#endif
-
-static int __debug_mask;
+static int __debug_mask = 0xFF;
 module_param_named(
 	debug_mask, __debug_mask, int, S_IRUSR | S_IWUSR
 );
@@ -246,11 +258,15 @@ static int smb2_parse_dt(struct smb2 *chip)
 	chip->dt.no_battery = of_property_read_bool(node,
 						"qcom,batteryless-platform");
 
+	if (hwc_check_global){
+		pr_err("sunxing get global set fcc max 2.3A");
+		chg->batt_profile_fcc_ua = 2300000;
+	}else{
 	rc = of_property_read_u32(node,
 				"qcom,fcc-max-ua", &chg->batt_profile_fcc_ua);
 	if (rc < 0)
 		chg->batt_profile_fcc_ua = -EINVAL;
-
+	}
 	rc = of_property_read_u32(node,
 				"qcom,fv-max-uv", &chg->batt_profile_fv_uv);
 	if (rc < 0)
@@ -293,7 +309,10 @@ static int smb2_parse_dt(struct smb2 *chip)
 				&chip->dt.wipower_max_uw);
 	if (rc < 0)
 		chip->dt.wipower_max_uw = -EINVAL;
-
+	
+#if defined(CONFIG_KERNEL_CUSTOM_E7S)	
+	if (hwc_check_india == 1){
+#endif
 	if (of_find_property(node, "qcom,thermal-mitigation", &byte_len)) {
 		chg->thermal_mitigation = devm_kzalloc(chg->dev, byte_len,
 			GFP_KERNEL);
@@ -312,12 +331,29 @@ static int smb2_parse_dt(struct smb2 *chip)
 			return rc;
 		}
 	}
-
-#ifdef CONFIG_MACH_ASUS_X00T
-	if (of_find_property(node, "qcom,chg-alert-vadc", NULL))
-		dev_err(chg->dev, "get chg_alert vadc good rc = %d\n", rc);
+#if defined(CONFIG_KERNEL_CUSTOM_E7S)
+	}
+	else {
+		if (of_find_property(node, "qcom,thermal-mitigation-china", &byte_len)) {
+			chg->thermal_mitigation = devm_kzalloc(chg->dev, byte_len,
+				GFP_KERNEL);
+		
+			if (chg->thermal_mitigation == NULL)
+				return -ENOMEM;
+		
+			chg->thermal_levels = byte_len / sizeof(u32);
+				rc = of_property_read_u32_array(node,
+						"qcom,thermal-mitigation-china",
+						chg->thermal_mitigation,
+						chg->thermal_levels);
+			if (rc < 0) {
+				dev_err(chg->dev,
+					"Couldn't read threm limits rc = %d\n", rc);
+				return rc;
+			}
+		}
+	}
 #endif
-
 	of_property_read_u32(node, "qcom,float-option", &chip->dt.float_option);
 	if (chip->dt.float_option < 0 || chip->dt.float_option > 4) {
 		pr_err("qcom,float-option is out of range [0, 4]\n");
@@ -384,7 +420,10 @@ static enum power_supply_property smb2_usb_props[] = {
 	POWER_SUPPLY_PROP_PD_VOLTAGE_MAX,
 	POWER_SUPPLY_PROP_PD_VOLTAGE_MIN,
 	POWER_SUPPLY_PROP_SDP_CURRENT_MAX,
+	POWER_SUPPLY_PROP_RERUN_APSD,
 };
+
+extern bool is_poweroff_charge;
 
 static int smb2_usb_get_prop(struct power_supply *psy,
 		enum power_supply_property psp,
@@ -412,7 +451,7 @@ static int smb2_usb_get_prop(struct power_supply *psy,
 			val->intval = 0;
 		else
 			val->intval = 1;
-		if (chg->real_charger_type == POWER_SUPPLY_TYPE_UNKNOWN)
+		if ((is_poweroff_charge != true) && (chg->real_charger_type == POWER_SUPPLY_TYPE_UNKNOWN))
 			val->intval = 0;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
@@ -559,6 +598,9 @@ static int smb2_usb_set_prop(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_SDP_CURRENT_MAX:
 		rc = smblib_set_prop_sdp_current_max(chg, val);
+		break;
+	case POWER_SUPPLY_PROP_RERUN_APSD:
+		rc = smblib_set_prop_rerun_apsd(chg, val);
 		break;
 	default:
 		pr_err("set prop %d is not supported\n", psp);
@@ -970,11 +1012,14 @@ static enum power_supply_property smb2_batt_props[] = {
 	POWER_SUPPLY_PROP_DP_DM,
 	POWER_SUPPLY_PROP_CHARGE_COUNTER,
 	POWER_SUPPLY_PROP_FCC_STEPPER_ENABLE,
+
+	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
+
+	#ifdef XIAOMI_CHARGER_RUNIN
+	POWER_SUPPLY_PROP_CHARGING_ENABLED,
+	#endif
 	POWER_SUPPLY_PROP_CHARGE_FULL,
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
-#ifdef CONFIG_MACH_ASUS_X00T
-	POWER_SUPPLY_PROP_CHARGING_ENABLED,
-#endif
 };
 
 static int smb2_batt_get_prop(struct power_supply *psy,
@@ -986,6 +1031,11 @@ static int smb2_batt_get_prop(struct power_supply *psy,
 	union power_supply_propval pval = {0, };
 
 	switch (psp) {
+	#ifdef XIAOMI_CHARGER_RUNIN
+	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
+		val->intval = chg->charging_enabled;
+		break;
+	#endif
 	case POWER_SUPPLY_PROP_STATUS:
 		rc = smblib_get_prop_batt_status(chg, val);
 		break;
@@ -998,16 +1048,17 @@ static int smb2_batt_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_INPUT_SUSPEND:
 		rc = smblib_get_prop_input_suspend(chg, val);
 		break;
-#ifdef CONFIG_MACH_ASUS_X00T
-	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
-		rc = smblib_get_prop_charging_enabled(chg, val);
-		break;
-#endif
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
 		rc = smblib_get_prop_batt_charge_type(chg, val);
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
 		rc = smblib_get_prop_batt_capacity(chg, val);
+		#ifdef XIAOMI_CHARGER_RUNIN
+		pr_err("lct battery_capacity =%d\n", val->intval);
+		#endif
+		#ifdef CONFIG_CHARGER_RUNIN
+		runin_work(chg,val);
+		#endif
 		break;
 	case POWER_SUPPLY_PROP_SYSTEM_TEMP_LEVEL:
 		rc = smblib_get_prop_system_temp_level(chg, val);
@@ -1045,6 +1096,14 @@ static int smb2_batt_get_prop(struct power_supply *psy,
 		val->intval = get_client_vote_locked(chg->fv_votable,
 				QNOVO_VOTER);
 		break;
+#if 0
+	case POWER_SUPPLY_PROP_CURRENT_NOW:
+		rc = smblib_get_prop_batt_current_now(chg, val);
+		#ifdef XIAOMI_CHARGER_RUNIN
+		pr_err("lct current_now =%d\n", val->intval);
+		#endif
+		break;
+#endif
 	case POWER_SUPPLY_PROP_CURRENT_QNOVO:
 		val->intval = get_client_vote_locked(chg->fcc_votable,
 				QNOVO_VOTER);
@@ -1073,6 +1132,11 @@ static int smb2_batt_get_prop(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_DP_DM:
 		val->intval = chg->pulse_cnt;
 		break;
+
+	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
+		rc = smblib_get_prop_battery_full_design(chg, val);
+		break;
+
 	case POWER_SUPPLY_PROP_RERUN_AICL:
 		val->intval = 0;
 		break;
@@ -1112,14 +1176,14 @@ static int smb2_batt_set_prop(struct power_supply *psy,
 	struct smb_charger *chg = power_supply_get_drvdata(psy);
 
 	switch (prop) {
+	#ifdef XIAOMI_CHARGER_RUNIN
+	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
+		rc = lct_set_prop_input_suspend(chg, val);
+		break;
+	#endif
 	case POWER_SUPPLY_PROP_INPUT_SUSPEND:
 		rc = smblib_set_prop_input_suspend(chg, val);
 		break;
-#ifdef CONFIG_MACH_ASUS_X00T
-	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
-		rc = smblib_set_prop_charging_enabled(chg, val);
-		break;
-#endif
 	case POWER_SUPPLY_PROP_SYSTEM_TEMP_LEVEL:
 		rc = smblib_set_prop_system_temp_level(chg, val);
 		break;
@@ -1207,6 +1271,9 @@ static int smb2_batt_prop_is_writeable(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_PARALLEL_DISABLE:
 	case POWER_SUPPLY_PROP_DP_DM:
 	case POWER_SUPPLY_PROP_RERUN_AICL:
+	#ifdef XIAOMI_CHARGER_RUNIN
+	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
+	#endif
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMITED:
 	case POWER_SUPPLY_PROP_STEP_CHARGING_ENABLED:
 	case POWER_SUPPLY_PROP_SW_JEITA_ENABLED:
@@ -1569,7 +1636,10 @@ static int smb2_init_hw(struct smb2 *chip)
 		return rc;
 	}
 
-	smblib_rerun_apsd_if_required(chg);
+	if((is_poweroff_charge == false) && (stat != 0x01)) {
+		smblib_rerun_apsd_if_required(chg);
+	}
+
 
 	/* clear the ICL override if it is set */
 	if (smblib_icl_override(chg, false) < 0) {
@@ -1604,6 +1674,52 @@ static int smb2_init_hw(struct smb2 *chip)
 	vote(chg->hvdcp_enable_votable, MICRO_USB_VOTER,
 			chg->micro_usb_mode, 0);
 
+#if defined(CONFIG_KERNEL_CUSTOM_E7S)
+
+	/* Operate the QC2.0 in 5V/9V mode i.e. Disable 12V */
+        rc = smblib_masked_write(chg, HVDCP_PULSE_COUNT_MAX_REG,
+                                                PULSE_COUNT_QC2P0_12V | PULSE_COUNT_QC2P0_9V,
+                                                PULSE_COUNT_QC2P0_9V);
+        if (rc < 0) {
+                dev_err(chg->dev,
+                        "Couldn't configure QC2.0 to 9V rc=%d\n", rc);
+                return rc;
+        }
+        /* Operate the QC3.0 to limit vbus to 8.0v*/
+        rc = smblib_masked_write(chg, HVDCP_PULSE_COUNT_MAX_REG,
+                                        PULSE_COUNT_QC3P0_MASK, 0xf);
+        if (rc < 0) {
+                dev_err(chg->dev,
+                        "Couldn't configure QC3.0 to 7.6V rc=%d\n", rc);
+                return rc;
+        }
+
+	/* lct reconfigure allowed voltage for HVDCP */
+	rc = smblib_write(chg, USBIN_ADAPTER_ALLOW_CFG_REG, USBIN_ADAPTER_ALLOW_5V_OR_9V_TO_12V);
+	if (rc < 0) {
+		dev_err(chg->dev, "Couldn't write to USBIN_ADAPTER_ALLOW_CFG rc=%d\n", rc);
+		return rc;
+	}
+
+#else
+	/* Operate the QC2.0 in 5V/9V mode i.e. Disable 12V */
+	rc = smblib_masked_write(chg, HVDCP_PULSE_COUNT_MAX_REG,
+						PULSE_COUNT_QC2P0_12V | PULSE_COUNT_QC2P0_9V,
+						PULSE_COUNT_QC2P0_9V);
+	if (rc < 0) {
+		dev_err(chg->dev,
+			"Couldn't configure QC2.0 to 9V rc=%d\n", rc);
+		return rc;
+	}
+	/* Operate the QC3.0 to limit vbus to 6.6v*/
+	rc = smblib_masked_write(chg, HVDCP_PULSE_COUNT_MAX_REG,
+					PULSE_COUNT_QC3P0_MASK, 0x8);
+	if (rc < 0) {
+		dev_err(chg->dev,
+			"Couldn't configure QC3.0 to 6.6V rc=%d\n", rc);
+		return rc;
+	}
+#endif
 	/*
 	 * AICL configuration:
 	 * start from min and AICL ADC disable
@@ -1758,6 +1874,8 @@ static int smb2_init_hw(struct smb2 *chip)
 		return rc;
 	}
 
+	rc = vote(chg->chg_disable_votable, DEFAULT_VOTER, true, 0);
+
 	switch (chip->dt.chg_inhibit_thr_mv) {
 	case 50:
 		rc = smblib_masked_write(chg, CHARGE_INHIBIT_THRESHOLD_CFG_REG,
@@ -1785,6 +1903,8 @@ static int smb2_init_hw(struct smb2 *chip)
 	default:
 		break;
 	}
+
+	rc = vote(chg->chg_disable_votable, DEFAULT_VOTER, false, 0);
 
 	if (rc < 0) {
 		dev_err(chg->dev, "Couldn't configure charge inhibit threshold rc=%d\n",
@@ -2106,7 +2226,6 @@ static struct smb_irq_info smb2_irqs[] = {
 	[SWITCH_POWER_OK_IRQ] = {
 		.name		= "switcher-power-ok",
 		.handler	= smblib_handle_switcher_power_ok,
-		.wake		= true,
 		.storm_data	= {true, 1000, 8},
 	},
 };
@@ -2287,241 +2406,117 @@ static void smb2_create_debugfs(struct smb2 *chip)
 
 #endif
 
-#ifdef CONFIG_MACH_ASUS_X00T
-#define ATD_CHG_LIMIT_SOC	70
-int charger_limit_enable_flag;
-int charger_limit_value;
-static char charger_limit[8] = "0";
-static struct proc_dir_entry *limit_enable_entry;
-static struct proc_dir_entry *limit_entry;
-extern int asus_get_prop_batt_capacity(struct smb_charger *chg);
-#define CHARGER_LIMIT_EN_PROC_FILE	"driver/charger_limit_enable"
-#define CHARGER_LIMIT_PROC_FILE		"driver/charger_limit"
-
-ssize_t charger_limit_enable_read_proc(struct file *file, char __user *page,
-					size_t size, loff_t *ppos)
+#ifdef THERMAL_CONFIG_FB
+static ssize_t lct_thermal_call_status_show(struct device *dev,
+					struct device_attribute *attr, char *buf)
 {
-	char read_data[8] = {0};
-	int len = 0;
-	int rc;
-
-	/* CMD call again */
-	if (*ppos)
-		return 0;
-
-	len = sprintf(read_data, "%d\n", charger_limit_enable_flag);
-	pr_debug("%s, len = %d, data = %s\n", __func__, len, read_data);
-
-	rc = copy_to_user(page, read_data, len);
-	if (rc < 0)
-		return -EFAULT;
-
-	*ppos += len;
-
-	return len;
+	return sprintf(buf, "%d\n", LctIsInCall);
 }
-
-static ssize_t charger_limit_enable_write_proc(struct file *file,
-						const char __user *buff,
-						size_t size, loff_t *ppos)
+static ssize_t lct_thermal_call_status_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
 {
-	char write_data[32] = {0};
-	int rc;
-	int soc;
-	bool do_it, online;
-	union power_supply_propval pval = {0, };
+	int retval;
+	unsigned int input;
 
-	smblib_get_prop_usb_online(smbchg_dev, &pval);
-	online = pval.intval;
-
-	if (size >= 32)
-		return -EFAULT;
-
-	if (copy_from_user(&write_data, buff, size))
-		return -EFAULT;
-
-	if (write_data[0] == '1') {
-		charger_limit_enable_flag = 1;
-		soc = asus_get_prop_batt_capacity(smbchg_dev);
-
-		do_it = charger_limit_value < soc;
-		if (do_it) {
-			rc = smblib_masked_write(smbchg_dev,
-						CHARGING_ENABLE_CMD_REG,
-						CHARGING_ENABLE_CMD_BIT, 1);
-			if (online)
-				power_supply_changed(smbchg_dev->batt_psy);
-		}
-
-		pr_debug("%s, write enable 1 soc = %d, limit-value= %d!\n",
-				__func__, soc, charger_limit_value);
-	} else {
-		charger_limit_enable_flag = 0;
-
-		rc = smblib_masked_write(smbchg_dev,
-					CHARGING_ENABLE_CMD_REG,
-					CHARGING_ENABLE_CMD_BIT, 0);
-		if (online)
-			power_supply_changed(smbchg_dev->batt_psy);
-
-		pr_debug("%s, write enable 0, no limit, charging !!\n",
-				__func__);
-	}
-
-	pr_debug("%s, charger_limit_enable_flag = %d\n", __func__,
-			charger_limit_enable_flag);
-
-	return size;
-}
-
-static const struct file_operations charger_limit_enable_proc_ops = {
-	.read = charger_limit_enable_read_proc,
-	.write = charger_limit_enable_write_proc,
-};
-
-ssize_t charger_limit_read_proc(struct file *file, char __user *page,
-				size_t size, loff_t *ppos)
-{
-	char read_data[8] = {0};
-	int len = 0;
-	int rc;
-
-	/* CMD call again */
-	if (*ppos)
-		return 0;
-
-	len = sprintf(read_data, "%d\n", charger_limit_value);
-	pr_debug("%s, len = %d, data = %s\n", __func__, len, read_data);
-
-	rc = copy_to_user(page, read_data, len);
-	if (rc < 0)
-		return -EFAULT;
-
-	*ppos += len;
-
-	return len;
-}
-
-static ssize_t charger_limit_write_proc(struct file *file,
-					const char __user *buff, size_t size,
-					loff_t *ppos)
-{
-	char write_data[8] = {0};
-	int soc;
-	bool do_it, online;
-	union power_supply_propval pval = {0, };
-
-	smblib_get_prop_usb_online(smbchg_dev, &pval);
-	online = pval.intval;
-
-	if (size >= 32)
-		return -EFAULT;
-
-	if (copy_from_user(&write_data, buff, size))
-		return -EFAULT;
-
-	if (write_data[0] == '0')
-		memset(charger_limit, 0, 8);
+	if (sscanf(buf, "%u", &input) != 1)
+		retval = -EINVAL;
 	else
-		memcpy(charger_limit, write_data, 8);
+	        LctIsInCall = input;
 
-	charger_limit_value = (int)simple_strtol(charger_limit, NULL, 10);
-	soc = asus_get_prop_batt_capacity(smbchg_dev);
+	pr_err("IsInCall = %d\n", LctIsInCall);
 
-	if (charger_limit_value > 100 || charger_limit_value < 0)
-		charger_limit_value = ATD_CHG_LIMIT_SOC;
+	return retval;
+}
+static struct device_attribute attrs2[] = {
+	__ATTR(thermalcall, S_IRUGO | S_IWUSR,
+			lct_thermal_call_status_show, lct_thermal_call_status_store),
+};
+	
+static void thermal_fb_notifier_resume_work(struct work_struct *work)
+{
+	struct smb_charger *chg = container_of(work, struct smb_charger, fb_notify_work);
+	
+	LctThermal = 1;
+#if defined(CONFIG_KERNEL_CUSTOM_E7S)
+	if ((lct_backlight_off) && (LctIsInCall == 0) /*&& (hwc_check_india == 1)*/)
+	{
+		if (hwc_check_india == 1) {				
+			if (lct_therm_lvl_reserved.intval >= 2)
+				smblib_set_prop_system_temp_level(chg,&lct_therm_india_level);
+			else
+				smblib_set_prop_system_temp_level(chg,&lct_therm_lvl_reserved);
+		}
+		else {
+			if (lct_therm_lvl_reserved.intval >= 1)
+				smblib_set_prop_system_temp_level(chg,&lct_therm_globe_level);
+			else
+				smblib_set_prop_system_temp_level(chg,&lct_therm_lvl_reserved);
+		}
+	}
+	else if (LctIsInCall == 1)
+		smblib_set_prop_system_temp_level(chg,&lct_therm_call_level);
+	else
+		smblib_set_prop_system_temp_level(chg,&lct_therm_lvl_reserved);
+	LctThermal = 0;
+#else
+	if((lct_backlight_off) && (LctIsInCall == 0) && (hwc_check_india == 0))
+		smblib_set_prop_system_temp_level(chg,&lct_therm_level);
+	else if ((lct_backlight_off) && (LctIsInCall == 0) && (hwc_check_india == 1))
+	{
+		if (lct_therm_lvl_reserved.intval >= 1)
+			smblib_set_prop_system_temp_level(chg,&lct_therm_india_level);
+		else
+			smblib_set_prop_system_temp_level(chg,&lct_therm_level);
+	}
+	else if (LctIsInCall == 1)
+		smblib_set_prop_system_temp_level(chg,&lct_therm_call_level);
+	else
+		smblib_set_prop_system_temp_level(chg,&lct_therm_lvl_reserved);
+	LctThermal = 0;
+#endif
+}
 
-	charger_limit_enable_flag = !!charger_limit_value;
-	if (!charger_limit_enable_flag) {
-		smblib_masked_write(smbchg_dev, CHARGING_ENABLE_CMD_REG,
-					CHARGING_ENABLE_CMD_BIT, 0);
-		if (online)
-			power_supply_changed(smbchg_dev->batt_psy);
-	} else {
-		do_it = charger_limit_value < soc;
-		if (do_it) {
-			smblib_masked_write(smbchg_dev,
-						CHARGING_ENABLE_CMD_REG,
-						CHARGING_ENABLE_CMD_BIT, 1);
-			if (online)
-				power_supply_changed(smbchg_dev->batt_psy);
+/* frame buffer notifier block control the suspend/resume procedure */
+static int thermal_notifier_callback(struct notifier_block *noti, unsigned long event, void *data)
+{
+	struct fb_event *ev_data = data;
+	struct smb_charger *chg = container_of(noti, struct smb_charger, notifier);
+	int *blank;
+	if (ev_data && ev_data->data && chg) {
+		blank = ev_data->data;
+		if (event == FB_EARLY_EVENT_BLANK && *blank == FB_BLANK_UNBLANK) {
+			
+			lct_backlight_off = true; // fake as display off to fasten charging rate
+			schedule_work(&chg->fb_notify_work);
+		}
+		else if (event == FB_EVENT_BLANK && *blank == FB_BLANK_POWERDOWN) {
+			lct_backlight_off = true;
+			schedule_work(&chg->fb_notify_work);
 		}
 	}
 
-	pr_debug("%s, limit-value= %d, current-soc = %d\n", __func__,
-			charger_limit_value, soc);
-	pr_debug("%s, limit-flag= %d\n", __func__, charger_limit_enable_flag);
-
-	return size;
+	return 0;
 }
 
-static const struct file_operations charger_limit_proc_ops = {
-	.read = charger_limit_read_proc,
-	.write = charger_limit_write_proc,
-};
-
-static int init_proc_charger_limit(void)
+static int lct_register_powermanger(struct smb_charger *chg)
 {
-	int ret;
+#if defined(CONFIG_FB)
+	chg->notifier.notifier_call = thermal_notifier_callback;
+	fb_register_client(&chg->notifier);
+#endif	
 
-	limit_enable_entry = proc_create(CHARGER_LIMIT_EN_PROC_FILE, 0666,
-					NULL, &charger_limit_enable_proc_ops);
-	if (limit_enable_entry != NULL) {
-		pr_debug("create proc entry %s success",
-				CHARGER_LIMIT_EN_PROC_FILE);
-		ret = 0;
-	} else {
-		pr_err("create_proc entry %s failed\n",
-			CHARGER_LIMIT_EN_PROC_FILE);
-		return -ENOMEM;
-	}
-
-	limit_entry = proc_create(CHARGER_LIMIT_PROC_FILE, 0666, NULL,
-					&charger_limit_proc_ops);
-	if (limit_entry != NULL) {
-		pr_debug("create proc entry %s success",
-				CHARGER_LIMIT_PROC_FILE);
-		ret = 0;
-	} else {
-		pr_err("create_proc entry %s failed\n",
-			CHARGER_LIMIT_PROC_FILE);
-		return -ENOMEM;
-	}
-
-	return ret;
+	return 0;
 }
 
-static void remove_proc_charger_limit(void)
+static int lct_unregister_powermanger(struct smb_charger *chg)
 {
-	proc_remove(limit_enable_entry);
-	proc_remove(limit_entry);
+#if defined(CONFIG_FB)
+	fb_unregister_client(&chg->notifier);		
+#endif
+
+	return 0;
 }
-
-int32_t get_ID_vadc_voltage(void)
-{
-	struct qpnp_vadc_chip *vadc_dev;
-	struct qpnp_vadc_result adc_result;
-	int32_t adc;
-
-	vadc_dev = qpnp_get_vadc(smbchg_dev->dev, "pm-gpio3");
-	if (IS_ERR(vadc_dev)) {
-		pr_err("%s: qpnp_get_vadc failed\n", __func__);
-		return PTR_ERR(vadc_dev);
-	}
-
-	/* Read the GPIO2 VADC channel with 1:1 scaling */
-	qpnp_vadc_read(vadc_dev, VADC_AMUX2_GPIO, &adc_result);
-	adc = (int) adc_result.physical;
-
-	/* uV to mV */
-	adc = adc / 1000;
-
-	pr_debug("%s: adc=%d adc_result.physical=%lld adc_result.chan=0x%x\n",
-			__func__, adc, adc_result.physical, adc_result.chan);
-
-	return adc;
-}
-#endif /* CONFIG_MACH_ASUS_X00T */
+#endif
 
 static int smb2_probe(struct platform_device *pdev)
 {
@@ -2530,23 +2525,13 @@ static int smb2_probe(struct platform_device *pdev)
 	int rc = 0;
 	union power_supply_propval val;
 	int usb_present, batt_present, batt_health, batt_charge_type;
-#ifdef CONFIG_MACH_ASUS_X00T
-	struct gpio_control *gpio_ctrl;
-	u8 HVDVP_reg, USBIN_AICL_reg;
-#endif
 
+	#ifdef THERMAL_CONFIG_FB
+	unsigned char attr_count2;
+	#endif
 	chip = devm_kzalloc(&pdev->dev, sizeof(*chip), GFP_KERNEL);
 	if (!chip)
 		return -ENOMEM;
-
-#ifdef CONFIG_MACH_ASUS_X00T
-	/* ASUS BSP: allocate GPIO control */
-	pr_debug("ADC_SW_EN=%d, ADCPWREN_PMI_GP1=%d\n", gpio_ctrl->ADC_SW_EN,
-			gpio_ctrl->ADCPWREN_PMI_GP1);
-	gpio_ctrl = devm_kzalloc(&pdev->dev, sizeof(*gpio_ctrl), GFP_KERNEL);
-	if (!gpio_ctrl)
-		return -ENOMEM;
-#endif
 
 	chg = &chip->chg;
 	chg->dev = &pdev->dev;
@@ -2557,45 +2542,6 @@ static int smb2_probe(struct platform_device *pdev)
 	chg->mode = PARALLEL_MASTER;
 	chg->irq_info = smb2_irqs;
 	chg->name = "PMI";
-#ifdef CONFIG_MACH_ASUS_X00T
-	wake_lock_init(&asus_chg_lock, WAKE_LOCK_SUSPEND, "asus_chg_lock");
-
-	/* ASUS BSP: add globe device struct */
-	smbchg_dev = chg;
-
-	/* ASUS BSP: add gpio control struct */
-	global_gpio = gpio_ctrl;
-
-	/* ASUS BSP: Request ADC_SW_EN-gpios59, ADCPWREN_PMI_GP1-gpios34 */
-	gpio_ctrl->ADC_SW_EN = of_get_named_gpio(pdev->dev.of_node,
-						"ADC_SW_EN-gpios59", 0);
-
-	rc = gpio_request(gpio_ctrl->ADC_SW_EN, "ADC_SW_EN-gpios59");
-	if (rc)
-		pr_err("%s: failed to request ADC_SW_EN-gpios59\n",
-			__func__);
-	else
-		pr_debug("%s: Success to request ADC_SW_EN-gpios59 %d\n",
-				__func__, (int)gpio_ctrl->ADC_SW_EN);
-
-	gpio_ctrl->ADCPWREN_PMI_GP1 = of_get_named_gpio(pdev->dev.of_node,
-						"ADCPWREN_PMI_GP1-gpios34", 0);
-
-	rc = gpio_request(gpio_ctrl->ADCPWREN_PMI_GP1,
-				"ADCPWREN_PMI_GP1-gpios34");
-	if (rc)
-		pr_err("%s: failed to request ADCPWREN_PMI_GP1-gpios34\n",
-			__func__);
-	else {
-		pr_debug("%s: Success to request ADCPWREN_PMI_GP1-gpios34 %d\n",
-				__func__, (int)gpio_ctrl->ADCPWREN_PMI_GP1);
-
-		gpio_direction_output(gpio_ctrl->ADCPWREN_PMI_GP1, 0);
-	}
-
-	rc = gpio_get_value(gpio_ctrl->ADCPWREN_PMI_GP1);
-	pr_debug("ADCPWREN_PMI_GP1 init H/L %d\n", rc);
-#endif /* CONFIG_MACH_ASUS_X00T */
 
 	chg->regmap = dev_get_regmap(chg->dev->parent, NULL);
 	if (!chg->regmap) {
@@ -2691,6 +2637,17 @@ static int smb2_probe(struct platform_device *pdev)
 		goto cleanup;
 	}
 
+	#ifdef THERMAL_CONFIG_FB
+	pr_info("enter sysfs create file thermal\n");
+	for (attr_count2 = 0; attr_count2 < ARRAY_SIZE(attrs2); attr_count2++) {
+		    rc = sysfs_create_file(&chg->dev->kobj,
+						&attrs2[attr_count2].attr);
+			if (rc < 0) {
+		        sysfs_remove_file(&chg->dev->kobj,
+						&attrs2[attr_count2].attr);
+			} 
+		}
+	#endif
 	rc = smb2_determine_initial_status(chip);
 	if (rc < 0) {
 		pr_err("Couldn't determine initial status rc=%d\n",
@@ -2709,10 +2666,6 @@ static int smb2_probe(struct platform_device *pdev)
 		pr_err("Failed in post init rc=%d\n", rc);
 		goto cleanup;
 	}
-
-#ifdef CONFIG_MACH_ASUS_X00T
-	init_proc_charger_limit();
-#endif
 
 	smb2_create_debugfs(chip);
 
@@ -2746,23 +2699,18 @@ static int smb2_probe(struct platform_device *pdev)
 
 	device_init_wakeup(chg->dev, true);
 
-#ifdef CONFIG_MACH_ASUS_X00T
-	rc = smblib_read(smbchg_dev, USBIN_OPTIONS_1_CFG_REG, &HVDVP_reg);
-	rc = smblib_masked_write(smbchg_dev, USBIN_OPTIONS_1_CFG_REG,
-					HVDCP_EN_BIT, 0x0);
-	rc = smblib_read(smbchg_dev, USBIN_OPTIONS_1_CFG_REG, &HVDVP_reg);
-	if (rc < 0)
-		pr_err("%s: Failed to set USBIN_OPTIONS_1_CFG_REG\n", __func__);
+	#ifdef THERMAL_CONFIG_FB
+ 	lct_therm_lvl_reserved.intval= 0;
+ 	lct_therm_level.intval= 0;
+	lct_backlight_off = false;
+	INIT_WORK(&chg->fb_notify_work, thermal_fb_notifier_resume_work);
+	/* register suspend and resume fucntion*/
+	lct_register_powermanger(chg);
+	#endif
 
-	rc = smblib_read(smbchg_dev, USBIN_AICL_OPTIONS_CFG_REG,
-				&USBIN_AICL_reg);
-	rc = smblib_masked_write(smbchg_dev, USBIN_AICL_OPTIONS_CFG_REG,
-				SUSPEND_ON_COLLAPSE_USBIN_BIT, 0x0);
-	rc = smblib_read(smbchg_dev, USBIN_AICL_OPTIONS_CFG_REG,
-				&USBIN_AICL_reg);
-	if (rc < 0)
-		pr_err("%s: Failed to set USBIN_OPTIONS_1_CFG_REG\n", __func__);
-#endif
+	#ifdef XIAOMI_CHARGER_RUNIN
+	chg->charging_enabled = true;
+	#endif
 
 	pr_info("QPNP SMB2 probed successfully usb:present=%d type=%d batt:present = %d health = %d charge = %d\n",
 		usb_present, chg->real_charger_type,
@@ -2789,47 +2737,32 @@ cleanup:
 	smblib_deinit(chg);
 
 	platform_set_drvdata(pdev, NULL);
-#ifdef CONFIG_MACH_ASUS_X00T
-	remove_proc_charger_limit();
-#endif
 	return rc;
 }
-
-#ifdef CONFIG_MACH_ASUS_X00T
-#define JEITA_MINIMUM_INTERVAL (30)
-
-static int smb2_resume(struct device *dev)
-{
-	struct timespec mtNow;
-	int nextJEITAinterval;
-
-	if (!asus_get_prop_usb_present(smbchg_dev))
-		return 0;
-
-	asus_smblib_stay_awake(smbchg_dev);
-	mtNow = current_kernel_time();
-
-	/* BSP Austin_Tseng: if next JEITA time less than 30s,
-	 * do JEITA (next JEITA time = last JEITA time + 60s)
-	 */
-	nextJEITAinterval = 60 - (mtNow.tv_sec - last_jeita_time.tv_sec);
-	if (nextJEITAinterval <= JEITA_MINIMUM_INTERVAL) {
-		smblib_asus_monitor_start(smbchg_dev, 0);
-		cancel_delayed_work(&smbchg_dev->asus_batt_RTC_work);
-	} else {
-		smblib_asus_monitor_start(smbchg_dev, nextJEITAinterval * 1000);
-		asus_smblib_relax(smbchg_dev);
-	}
-
-	return 0;
-}
-#endif /* CONFIG_MACH_ASUS_X00T */
 
 static int smb2_remove(struct platform_device *pdev)
 {
 	struct smb2 *chip = platform_get_drvdata(pdev);
 	struct smb_charger *chg = &chip->chg;
-
+	#ifdef THERMAL_CONFIG_FB
+	unsigned char attr_count2;
+	#endif
+	
+	#ifdef CONFIG_CHARGER_RUNIN
+	unsigned char attr_count;
+			for (attr_count = 0; attr_count < ARRAY_SIZE(attrs); attr_count++) {
+			    sysfs_remove_file(&chg->dev->kobj,
+							&attrs[attr_count].attr);
+			}
+	#endif
+	
+	#ifdef THERMAL_CONFIG_FB
+		for (attr_count2 = 0; attr_count2 < ARRAY_SIZE(attrs2); attr_count2++) {
+			  sysfs_remove_file(&chg->dev->kobj,
+							&attrs2[attr_count2].attr);
+			}
+	lct_unregister_powermanger(chg);
+	#endif
 	power_supply_unregister(chg->batt_psy);
 	power_supply_unregister(chg->usb_psy);
 	power_supply_unregister(chg->usb_port_psy);
@@ -2862,12 +2795,6 @@ static void smb2_shutdown(struct platform_device *pdev)
 				 AUTO_SRC_DETECT_BIT, AUTO_SRC_DETECT_BIT);
 }
 
-#ifdef CONFIG_MACH_ASUS_X00T
-static const struct dev_pm_ops smb2_pm_ops = {
-	.resume		= smb2_resume,
-};
-#endif
-
 static const struct of_device_id match_table[] = {
 	{ .compatible = "qcom,qpnp-smb2", },
 	{ },
@@ -2878,9 +2805,6 @@ static struct platform_driver smb2_driver = {
 		.name		= "qcom,qpnp-smb2",
 		.owner		= THIS_MODULE,
 		.of_match_table	= match_table,
-#ifdef CONFIG_MACH_ASUS_X00T
-		.pm		= &smb2_pm_ops,
-#endif
 	},
 	.probe		= smb2_probe,
 	.remove		= smb2_remove,
