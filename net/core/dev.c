@@ -4328,6 +4328,7 @@ static enum gro_result dev_gro_receive(struct napi_struct *napi, struct sk_buff 
 		NAPI_GRO_CB(skb)->free = 0;
 		NAPI_GRO_CB(skb)->encap_mark = 0;
 		NAPI_GRO_CB(skb)->recursion_counter = 0;
+		NAPI_GRO_CB(skb)->is_fou = 0;
 		NAPI_GRO_CB(skb)->gro_remcsum_start = 0;
 
 		/* Setup for GRO checksum validation */
@@ -6162,7 +6163,8 @@ static int __dev_set_mtu(struct net_device *dev, int new_mtu)
 	if (ops->ndo_change_mtu)
 		return ops->ndo_change_mtu(dev, new_mtu);
 
-	dev->mtu = new_mtu;
+	/* Pairs with all the lockless reads of dev->mtu in the stack */
+	WRITE_ONCE(dev->mtu, new_mtu);
 	return 0;
 }
 
