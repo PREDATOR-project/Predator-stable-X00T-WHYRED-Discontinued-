@@ -237,7 +237,7 @@ extern void proc_sched_set_task(struct task_struct *p);
 extern char ___assert_task_state[1 - 2*!!(
 		sizeof(TASK_STATE_TO_CHAR_STR)-1 != ilog2(TASK_STATE_MAX)+1)];
 
-/* Convenience macros for the sake of set_current_state */
+/* Convenience macros for the sake of set_task_state */
 #define TASK_KILLABLE		(TASK_WAKEKILL | TASK_UNINTERRUPTIBLE)
 #define TASK_STOPPED		(TASK_WAKEKILL | __TASK_STOPPED)
 #define TASK_TRACED		(TASK_WAKEKILL | __TASK_TRACED)
@@ -264,6 +264,17 @@ extern char ___assert_task_state[1 - 2*!!(
 
 #ifdef CONFIG_DEBUG_ATOMIC_SLEEP
 
+#define __set_task_state(tsk, state_value)			\
+	do {							\
+		(tsk)->task_state_change = _THIS_IP_;		\
+		(tsk)->state = (state_value);			\
+	} while (0)
+#define set_task_state(tsk, state_value)			\
+	do {							\
+		(tsk)->task_state_change = _THIS_IP_;		\
+		smp_store_mb((tsk)->state, (state_value));		\
+	} while (0)
+
 /*
  * set_current_state() includes a barrier so that the write of current->state
  * is correctly serialised wrt the caller's subsequent test of whether to
@@ -287,6 +298,12 @@ extern char ___assert_task_state[1 - 2*!!(
 	} while (0)
 
 #else
+
+#define __set_task_state(tsk, state_value)		\
+	do { (tsk)->state = (state_value); } while (0)
+#define set_task_state(tsk, state_value)		\
+	smp_store_mb((tsk)->state, (state_value))
+
 /*
  * set_current_state() includes a barrier so that the write of current->state
  * is correctly serialised wrt the caller's subsequent test of whether to
@@ -450,10 +467,12 @@ extern signed long schedule_timeout_uninterruptible(signed long timeout);
 asmlinkage void schedule(void);
 extern void schedule_preempt_disabled(void);
 
-extern int __must_check io_schedule_prepare(void);
-extern void io_schedule_finish(int token);
 extern long io_schedule_timeout(long timeout);
-extern void io_schedule(void);
+
+static inline void io_schedule(void)
+{
+	io_schedule_timeout(MAX_SCHEDULE_TIMEOUT);
+}
 
 struct nsproxy;
 struct user_namespace;
@@ -633,34 +652,6 @@ struct task_cputime_atomic {
  * Reset by start_kernel()->sched_init()->init_idle()->init_idle_preempt_count().
  */
 #define INIT_PREEMPT_COUNT	PREEMPT_OFFSET
-
-/**
- * struct util_est - Estimation utilization of FAIR tasks
- * @enqueued: instantaneous estimated utilization of a task/cpu
- * @ewma:     the Exponential Weighted Moving Average (EWMA)
- *            utilization of a task
- *
- * Support data structure to track an Exponential Weighted Moving Average
- * (EWMA) of a FAIR task's utilization. New samples are added to the moving
- * average each time a task completes an activation. Sample's weight is chosen
- * so that the EWMA will be relatively insensitive to transient changes to the
- * task's workload.
- *
- * The enqueued attribute has a slightly different meaning for tasks and cpus:
- * - task:   the task's util_avg at last task dequeue time
- * - cfs_rq: the sum of util_est.enqueued for each RUNNABLE task on that CPU
- * Thus, the util_est.enqueued of a task represents the contribution on the
- * estimated utilization of the CPU where that task is currently enqueued.
- *
- * Only for tasks we track a moving average of the past instantaneous
- * estimated utilization. This allows to absorb sporadic drops in utilization
- * of an otherwise almost periodic task.
- */
-struct util_est {
-	unsigned int			enqueued;
-	unsigned int			ewma;
-#define UTIL_EST_WEIGHT_SHIFT		2
-};
 
 /*
  * Initial preempt_count value; reflects the preempt_count schedule invariant
@@ -1038,14 +1029,8 @@ struct wake_q_head {
 #define WAKE_Q(name)					\
 	struct wake_q_head name = { WAKE_Q_TAIL, &name.first, 0 }
 
-static inline void wake_q_init(struct wake_q_head *head)
-{
-	head->first = WAKE_Q_TAIL;
-	head->lastp = &head->first;
-}
-
-extern void wake_q_add(struct wake_q_head *head, struct task_struct *task);
-extern void wake_q_add_safe(struct wake_q_head *head, struct task_struct *task);
+extern void wake_q_add(struct wake_q_head *head,
+		       struct task_struct *task);
 extern void wake_up_q(struct wake_q_head *head);
 
 /*
@@ -1299,7 +1284,9 @@ static inline bool cpus_share_cache(int this_cpu, int that_cpu)
 
 #endif	/* !CONFIG_SMP */
 
+
 struct io_context;			/* See blkdev.h */
+
 
 #ifdef ARCH_HAS_PREFETCH_SWITCH_STACK
 extern void prefetch_stack(struct task_struct *t);
@@ -1335,7 +1322,6 @@ struct sched_avg {
 	u64 last_update_time, load_sum;
 	u32 util_sum, period_contrib;
 	unsigned long load_avg, util_avg;
-	struct util_est			util_est;
 };
 
 #ifdef CONFIG_SCHEDSTATS
@@ -1745,8 +1731,10 @@ struct task_struct {
 
 	cputime_t utime, stime, utimescaled, stimescaled;
 	cputime_t gtime;
-	atomic64_t *time_in_state;
+#ifdef CONFIG_CPU_FREQ_TIMES
+	u64 *time_in_state;
 	unsigned int max_state;
+#endif
 	struct prev_cputime prev_cputime;
 #ifdef CONFIG_VIRT_CPU_ACCOUNTING_GEN
 	seqlock_t vtime_seqlock;
@@ -1814,8 +1802,8 @@ struct task_struct {
 	struct seccomp seccomp;
 
 /* Thread group tracking */
-   	u32 parent_exec_id;
-   	u32 self_exec_id;
+	u64 parent_exec_id;
+	u64 self_exec_id;
 /* Protection of (de-)allocation: mm, files, fs, tty, keyrings, mems_allowed,
  * mempolicy */
 	spinlock_t alloc_lock;
@@ -1827,9 +1815,8 @@ struct task_struct {
 
 #ifdef CONFIG_RT_MUTEXES
 	/* PI waiters blocked on a rt_mutex held by this task */
-	struct rb_root_cached		pi_waiters;
-	/* Updated under owner's pi_lock and rq lock */
-	struct task_struct		*pi_top_task;
+	struct rb_root pi_waiters;
+	struct rb_node *pi_waiters_leftmost;
 	/* Deadlock detection and priority inheritance handling */
 	struct rt_mutex_waiter *pi_blocked_on;
 #endif
@@ -2057,8 +2044,6 @@ struct task_struct {
 	unsigned long	task_state_change;
 #endif
 	int pagefault_disabled;
-	atomic64_t *concurrent_active_time;
-	atomic64_t *concurrent_policy_time;
 /* CPU-specific state of this task */
 	struct thread_struct thread;
 /*
@@ -2279,9 +2264,6 @@ static inline void put_task_struct(struct task_struct *t)
 		__put_task_struct(t);
 }
 
-struct task_struct *task_rcu_dereference(struct task_struct **ptask);
-struct task_struct *try_get_task_struct(struct task_struct **ptask);
-
 #ifdef CONFIG_VIRT_CPU_ACCOUNTING_GEN
 extern void task_cputime(struct task_struct *t,
 			 cputime_t *utime, cputime_t *stime);
@@ -2401,7 +2383,6 @@ static inline void memalloc_noio_restore(unsigned int flags)
 #define PFA_NO_NEW_PRIVS 0	/* May not gain new privileges. */
 #define PFA_SPREAD_PAGE  1      /* Spread page cache over cpuset */
 #define PFA_SPREAD_SLAB  2      /* Spread some slab caches over cpuset */
-#define PFA_LMK_WAITING  3      /* Lowmemorykiller is waiting */
 #define PFA_SPEC_SSB_DISABLE		4	/* Speculative Store Bypass disabled */
 #define PFA_SPEC_SSB_FORCE_DISABLE	5	/* Speculative Store Bypass force disabled*/
 #define PFA_SPEC_IB_DISABLE		6	/* Indirect branch speculation restricted */
@@ -2435,8 +2416,6 @@ TASK_PFA_CLEAR(SPEC_SSB_DISABLE, spec_ssb_disable)
 
 TASK_PFA_TEST(SPEC_SSB_FORCE_DISABLE, spec_ssb_force_disable)
 TASK_PFA_SET(SPEC_SSB_FORCE_DISABLE, spec_ssb_force_disable)
-TASK_PFA_TEST(LMK_WAITING, lmk_waiting)
-TASK_PFA_SET(LMK_WAITING, lmk_waiting)
 
 TASK_PFA_TEST(SPEC_IB_DISABLE, spec_ib_disable)
 TASK_PFA_SET(SPEC_IB_DISABLE, spec_ib_disable)
@@ -2877,7 +2856,7 @@ static inline bool mmget_not_zero(struct mm_struct *mm)
 }
 
 /* mmput gets rid of the mappings and all user-space */
-extern void mmput(struct mm_struct *);
+extern int mmput(struct mm_struct *);
 /* same as above but performs the slow path from the async kontext. Can
  * be called from the atomic context as well
  */
@@ -3466,18 +3445,6 @@ static inline void set_task_cpu(struct task_struct *p, unsigned int cpu)
 
 #endif /* CONFIG_SMP */
 
-/*
- * In order to reduce various lock holder preemption latencies provide an
- * interface to see if a vCPU is currently running or not.
- *
- * This allows us to terminate optimistic spin loops and block, analogous to
- * the native optimistic spin heuristic of testing if the lock owner task is
- * running or not.
- */
-#ifndef vcpu_is_preempted
-# define vcpu_is_preempted(cpu)	false
-#endif
-
 extern long sched_setaffinity(pid_t pid, const struct cpumask *new_mask);
 extern long sched_getaffinity(pid_t pid, struct cpumask *mask);
 
@@ -3588,24 +3555,5 @@ void cpufreq_add_update_util_hook(int cpu, struct update_util_data *data,
                                     unsigned int flags));
 void cpufreq_remove_update_util_hook(int cpu);
 #endif /* CONFIG_CPU_FREQ */
-
-#ifdef CONFIG_DYNAMIC_STUNE_BOOST
-int do_stune_boost(int boost, int *slot);
-int do_stune_sched_boost(int *slot);
-int reset_stune_boost(int slot);
-
-int get_sched_boost(void);
-#endif /* CONFIG_DYNAMIC_STUNE_BOOST */
-
-#ifndef arch_scale_cpu_capacity
-static __always_inline
-unsigned long arch_scale_cpu_capacity(struct sched_domain *sd, int cpu)
-{
-	if (sd && (sd->flags & SD_SHARE_CPUCAPACITY) && (sd->span_weight > 1))
-		return sd->smt_gain / sd->span_weight;
-
-	return SCHED_CAPACITY_SCALE;
-}
-#endif
 
 #endif
