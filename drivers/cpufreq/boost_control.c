@@ -13,7 +13,7 @@
 
 #include <linux/module.h>
 
-bool enable_fb_boost=true;
+bool enable_fb_boost=false;
 module_param_named(enable_fb_boost, enable_fb_boost, bool, 0644);
 
 u32 input_boost_freq_perf=CONFIG_INPUT_BOOST_FREQ_PERF;
@@ -39,5 +39,5 @@ module_param_named(dynamic_stune_boost, dynamic_stune_boost, short, 0644);
 u16 app_launch_boost_ms=0;
 module_param_named(app_launch_boost_ms, app_launch_boost_ms, short, 0644);
 
-u16 lmk_boost_ms=100;
+u16 lmk_boost_ms=0;
 module_param_named(lmk_boost_ms, lmk_boost_ms, short, 0644);
