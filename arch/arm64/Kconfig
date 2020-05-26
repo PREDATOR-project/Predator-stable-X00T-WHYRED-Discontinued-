@@ -526,7 +526,7 @@ config ARM64_ERRATUM_843419
 
 config ARM64_ERRATUM_1024718
 	bool "Cortex-A55: 1024718: Update of DBM/AP bits without break before make might result in incorrect update"
-	default y
+	default n
 	help
 	  This option adds work around for Arm Cortex-A55 Erratum 1024718.
 
