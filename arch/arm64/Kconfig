@@ -449,7 +449,7 @@ config ARM64_ERRATUM_819472
 
 config ARM64_ERRATUM_832075
 	bool "Cortex-A57: 832075: possible deadlock on mixing exclusive memory accesses with device loads"
-	default y
+	default n
 	help
 	  This option adds an alternative code sequence to work around ARM
 	  erratum 832075 on Cortex-A57 parts up to r1p2.
@@ -468,7 +468,7 @@ config ARM64_ERRATUM_832075
 config ARM64_ERRATUM_834220
 	bool "Cortex-A57: 834220: Stage 2 translation fault might be incorrectly reported in presence of a Stage 1 fault"
 	depends on KVM
-	default y
+	default n
 	help
 	  This option adds an alternative code sequence to work around ARM
 	  erratum 834220 on Cortex-A57 parts up to r1p2.
