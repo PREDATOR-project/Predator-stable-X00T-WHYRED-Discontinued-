@@ -34,7 +34,6 @@
 
 	chosen {
 		stdout-path = "serial0";
-		bootargs = "rcupdate.rcu_expedited=1";
 	};
 
 	psci {
@@ -48,7 +47,7 @@
 
 		CPU0: cpu@0 {
 			device_type = "cpu";
-			compatible = "arm,kryo";
+			compatible = "arm,armv8";
 			reg = <0x0 0x0>;
 			enable-method = "psci";
 			qcom,limits-info = <&mitigation_profile0>;
@@ -77,7 +76,7 @@
 
 		CPU1: cpu@1 {
 			device_type = "cpu";
-			compatible = "arm,kryo";
+			compatible = "arm,armv8";
 			reg = <0x0 0x1>;
 			enable-method = "psci";
 			qcom,limits-info = <&mitigation_profile0>;
@@ -100,7 +99,7 @@
 
 		CPU2: cpu@2 {
 			device_type = "cpu";
-			compatible = "arm,kryo";
+			compatible = "arm,armv8";
 			reg = <0x0 0x2>;
 			enable-method = "psci";
 			qcom,limits-info = <&mitigation_profile0>;
@@ -123,7 +122,7 @@
 
 		CPU3: cpu@3 {
 			device_type = "cpu";
-			compatible = "arm,kryo";
+			compatible = "arm,armv8";
 			reg = <0x0 0x3>;
 			enable-method = "psci";
 			qcom,limits-info = <&mitigation_profile0>;
@@ -146,7 +145,7 @@
 
 		CPU4: cpu@100 {
 			device_type = "cpu";
-			compatible = "arm,kryo";
+			compatible = "arm,armv8";
 			reg = <0x0 0x100>;
 			enable-method = "psci";
 			qcom,limits-info = <&mitigation_profile1>;
@@ -173,7 +172,7 @@
 
 		CPU5: cpu@101 {
 			device_type = "cpu";
-			compatible = "arm,kryo";
+			compatible = "arm,armv8";
 			reg = <0x0 0x101>;
 			enable-method = "psci";
 			qcom,limits-info = <&mitigation_profile2>;
@@ -196,7 +195,7 @@
 
 		CPU6: cpu@102 {
 			device_type = "cpu";
-			compatible = "arm,kryo";
+			compatible = "arm,armv8";
 			reg = <0x0 0x102>;
 			enable-method = "psci";
 			qcom,limits-info = <&mitigation_profile3>;
@@ -219,7 +218,7 @@
 
 		CPU7: cpu@103 {
 			device_type = "cpu";
-			compatible = "arm,kryo";
+			compatible = "arm,armv8";
 			reg = <0x0 0x103>;
 			enable-method = "psci";
 			qcom,limits-info = <&mitigation_profile4>;
@@ -307,7 +306,7 @@
 					dev = "/dev/block/platform/soc/c0c4000.sdhci/by-name/vendor";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,discard";
-					fsmgr_flags = "wait,slotselect,verify";
+					fsmgr_flags = "wait,slotselect";
 					status = "ok";
 				};
 			};
@@ -399,13 +398,8 @@
 			alloc-ranges = <0 0x00000000 0 0xffffffff>;
 			reusable;
 			alignment = <0 0x400000>;
-			size = <0 0x8000000>;
+			size = <0 0x2c00000>;
 			linux,cma-default;
-		};
-
-		cont_splash_mem: splash_region@9d400000 {
-			reg = <0x0 0x9d400000 0x0 0x23ff000>;
-			label = "cont_splash_mem";
 		};
 
 		dfps_data_mem: dfps_data_mem@0x9f7ff000 {
@@ -823,7 +817,7 @@
 	qcom,msm-thermal {
 		compatible = "qcom,msm-thermal";
 		qcom,sensor-id = <1>;
-		qcom,poll-ms = <100>;
+		qcom,poll-ms = <200>;
 		qcom,therm-reset-temp = <115>;
 		qcom,core-limit-temp = <70>;
 		qcom,core-temp-hysteresis = <10>;
@@ -837,6 +831,7 @@
 		clock-names = "osm";
 		clocks = <&clock_cpu PWRCL_CLK>;
 		qcom,cxip-lm-enable = <1>;
+		qcom,disable-vdd-rstr;
 		qcom,vdd-restriction-temp = <5>;
 		qcom,vdd-restriction-temp-hysteresis = <10>;
 
@@ -873,8 +868,8 @@
 		compatible = "qcom,bcl";
 /*		qcom,bcl-enable; */
 		qcom,bcl-framework-interface;
-		qcom,bcl-hotplug-list = <&CPU6 &CPU7>;
-		qcom,bcl-soc-hotplug-list = <&CPU4 &CPU5 &CPU6 &CPU7>;
+		qcom,bcl-hotplug-list = <>;
+		qcom,bcl-soc-hotplug-list = <>;
 		qcom,ibat-monitor {
 			qcom,low-threshold-uamp = <3400000>;
 			qcom,high-threshold-uamp = <4200000>;
@@ -892,9 +887,8 @@
 	qcom,msm-core@780000 {
 		compatible = "qcom,apss-core-ea";
 		reg = <0x780000 0x1000>;
-		qcom,low-hyst-temp = <10>;
-		qcom,high-hyst-temp = <5>;
-		qcom,polling-interval = <100>;
+		qcom,low-hyst-temp = <100>;
+		qcom,high-hyst-temp = <100>;
 
 		ea0: ea0 {
 			sensor = <&sensor_information1>;
@@ -1127,7 +1121,7 @@
 
 	cpubw: qcom,cpubw {
 		compatible = "qcom,devbw";
-		governor = "performance";
+		governor = "bw_hwmon";
 		qcom,src-dst-ports = <1 512>;
 		qcom,active-only;
 		qcom,bw-tbl =
@@ -1254,6 +1248,16 @@
 				< 2150400 3879 >,
 				< 2457600 6881 >;
 		};
+	};
+
+	devfreq_compute: qcom,devfreq-compute {
+		compatible = "qcom,arm-cpu-mon";
+		qcom,cpulist = <&CPU0 &CPU1 &CPU2 &CPU3>;
+		qcom,target-dev = <&mincpubw>;
+		qcom,core-dev-table =
+                        < 902400 762 >,
+                        < 1401600 2086 >,
+                        < 1881600 3879 >;
 	};
 
 	clock_cpu: qcom,clk-cpu-660@179c0000 {
@@ -1766,6 +1770,7 @@
 		qcom,irq-mask = <0x1>;
 		interrupts = <0 168 1>;
 		label = "rpm";
+		cpu-affinity = <1 2>;
 	};
 
 	glink_mpss: qcom,glink-ssr-modem {
@@ -1922,6 +1927,7 @@
 		qcom,xprt-linkid = <1>;
 		qcom,xprt-version = <1>;
 		qcom,fragmented-data;
+		qcom,dynamic-wakeup-source;
 	};
 
 	qcom,ipc_router_cdsp_xprt {
