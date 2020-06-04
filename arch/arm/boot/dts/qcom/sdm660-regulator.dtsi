@@ -1,4 +1,5 @@
 /* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2019 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -97,6 +98,15 @@
 				<RPM_SMD_REGULATOR_LEVEL_TURBO>;
 			qcom,use-voltage-level;
 		};
+
+		cx_cdev: regulator-cx-cdev {
+			compatible = "qcom,regulator-cooling-device";
+			regulator-cdev-supply = <&pm660l_s3_level>;
+			regulator-levels = <RPM_SMD_REGULATOR_LEVEL_NOM
+					RPM_SMD_REGULATOR_LEVEL_RETENTION>;
+			#cooling-cells = <2>;
+		};
+
 	};
 
 	/* PM660L S5 - VDD_MX supply */
@@ -135,6 +145,15 @@
 				<RPM_SMD_REGULATOR_LEVEL_TURBO>;
 			qcom,use-voltage-level;
 		};
+
+		mx_cdev: regulator-mx-cdev {
+			compatible = "qcom,regulator-cooling-device";
+			regulator-cdev-supply = <&pm660l_s5_level>;
+			regulator-levels = <RPM_SMD_REGULATOR_LEVEL_NOM
+					RPM_SMD_REGULATOR_LEVEL_RETENTION>;
+			#cooling-cells = <2>;
+		};
+
 	};
 
 	rpm-regulator-ldoa1 {
@@ -597,11 +616,11 @@
 				qcom,cpr-corner-fmax-map = <1 2 3 4 5 6>;
 
 				qcom,cpr-voltage-ceiling =
-					<585000  645000  725000  790000
-					 870000  925000 1070000>;
+					<545000  605000  685000  750000
+					 830000  885000 1000000>;
 				qcom,cpr-voltage-floor =
-					<504000  504000  596000  652000
-					 712000  744000 1070000>;
+					<464000  464000  556000  612000
+					 672000  704000 930000>;
 
 				qcom,mem-acc-voltage = <1 1 1 2 2 2 2>;
 				qcom,system-voltage =
@@ -747,12 +766,12 @@
 					<2 3 4 5 8>;
 
 				qcom,cpr-voltage-ceiling =
-					< 724000  724000  724000  788000  868000
-					 1068000 1068000 1068000>;
+					<684000  684000  684000  748000  828000
+					 1028000 1028000 1028000>;
 
 				qcom,cpr-voltage-floor =
-					<588000  588000  596000  652000  712000
-					 744000  784000  844000>;
+					<548000  548000  556000  612000  672000
+					 684000  744000  804000>;
 
 				qcom,corner-frequencies =
 					/* Speed bin 0 */
@@ -898,12 +917,12 @@
 					<2 3 4 6 9>;
 
 				qcom,cpr-voltage-ceiling =
-					<724000  724000  724000  788000  868000
-					 988000  1068000 1068000 1068000>;
+					<684000  684000  684000  748000  828000
+					 948000  1028000 1028000 1028000>;
 
 				qcom,cpr-voltage-floor =
-					<588000  588000  596000  652000  712000
-					 744000  784000  844000  844000>;
+					<548000  548000  556000  612000  672000
+					 704000 744000  804000  804000>;
 
 				qcom,corner-frequencies =
 					/* Speed bin 0 */
