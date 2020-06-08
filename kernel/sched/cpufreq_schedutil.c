@@ -330,7 +330,7 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 		 */
 		if (busy && next_f < sg_policy->next_freq &&
 		    sg_policy->next_freq != UINT_MAX)
-			next_f = sg_policy->next_freq;
+			{next_f = sg_policy->next_freq;}
 			/* clear cache when it's bypassed */
 			sg_policy->cached_raw_freq = 0;
 		}
