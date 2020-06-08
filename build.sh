@@ -8,5 +8,5 @@ export CROSS_COMPILE_ARM32=/home/iqbal/gcc32/bin/arm-linux-gnueabi-
 mkdir -p out
 make O=out clean
 make O=out mrproper
-make O=out ptedator_defconfig
+make O=out predator_defconfig
 make O=out -j$(nproc --all)
