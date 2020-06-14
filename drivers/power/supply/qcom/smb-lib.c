@@ -4043,11 +4043,11 @@ void asus_adapter_adc_work(struct work_struct *work)
 	case ASUS_200K:
 	case PB:
 	case OTHERS:
-		usb_max_current = ICL_2000mA;
+		usb_max_current = ICL_3000mA;
 		break;
 
 	case ADC_NOT_READY:
-		usb_max_current = ICL_1000mA;
+		usb_max_current = ICL_1500mA;
 		break;
 	}
 
