@@ -1,10 +1,6 @@
 VERSION = 4
 PATCHLEVEL = 4
-<<<<<<< HEAD
-SUBLEVEL = 227
-=======
 SUBLEVEL = 228
->>>>>>> linux/linux-4.4.y
 EXTRAVERSION =
 NAME = Blurry Fish Butt
 
