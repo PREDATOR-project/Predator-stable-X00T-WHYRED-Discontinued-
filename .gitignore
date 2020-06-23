@@ -38,6 +38,7 @@ modules.builtin
 Module.symvers
 *.dwo
 *.su
+*.c.[012]*.*
 
 #
 # Top-level generic files
@@ -117,5 +118,7 @@ all.config
 # fetched Android config fragments
 android/configs/android-*.cfg
 
-# Huaqin, stop being retard by doing all kernel stuffs on Windows
-!.gitattributes
+#
+#Ignoring Android.bp link file
+#
+Android.bp

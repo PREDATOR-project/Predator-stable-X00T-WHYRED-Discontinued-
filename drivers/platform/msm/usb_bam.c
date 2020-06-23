@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2017, 2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2017, 2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -30,7 +30,7 @@
 
 #define USB_THRESHOLD 512
 #define USB_BAM_MAX_STR_LEN 50
-#define USB_BAM_TIMEOUT 10000
+#define USB_BAM_TIMEOUT (10*HZ)
 #define DBG_MAX_MSG   512UL
 #define DBG_MSG_LEN   160UL
 #define TIME_BUF_LEN  17
@@ -44,7 +44,7 @@
 #define ARRAY_INDEX_FROM_ADDR(base, addr) ((addr) - (base))
 
 #define ENABLE_EVENT_LOG 1
-static unsigned int enable_event_log = ENABLE_EVENT_LOG;
+static unsigned int enable_event_log;
 module_param(enable_event_log, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(enable_event_log, "enable event logging in debug buffer");
 
@@ -1400,7 +1400,7 @@ void usb_bam_finish_suspend_(struct work_struct *w)
 
 	info_ptr = container_of(w, struct usb_bam_ipa_handshake_info,
 			finish_suspend_work);
-	cur_bam = info_ptr->bam_type;
+	cur_bam = (enum usb_ctrl)(info_ptr->cur_bam_mode);
 
 	log_event_dbg("%s: Finishing suspend sequence(BAM=%s)\n", __func__,
 			bam_enable_strings[cur_bam]);
@@ -1664,7 +1664,7 @@ static void wait_for_prod_granted(enum usb_ctrl cur_bam)
 	} else if (ret == -EINPROGRESS) {
 		log_event_dbg("%s: Waiting for PROD_GRANTED\n", __func__);
 		if (!wait_for_completion_timeout(&info[cur_bam].prod_avail,
-			msecs_to_jiffies(USB_BAM_TIMEOUT)))
+			USB_BAM_TIMEOUT))
 			log_event_err("%s: Timeout wainting for PROD_GRANTED\n",
 				__func__);
 	} else
@@ -1709,7 +1709,7 @@ static void wait_for_prod_release(enum usb_ctrl cur_bam)
 	} else if (ret == -EINPROGRESS) {
 		log_event_dbg("%s: Waiting for PROD_RELEASED\n", __func__);
 		if (!wait_for_completion_timeout(&info[cur_bam].prod_released,
-					msecs_to_jiffies(USB_BAM_TIMEOUT)))
+						USB_BAM_TIMEOUT))
 			log_event_err("%s: Timeout waiting for PROD_RELEASED\n",
 			__func__);
 	} else {

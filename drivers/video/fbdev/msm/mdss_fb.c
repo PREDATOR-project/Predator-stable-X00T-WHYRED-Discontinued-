@@ -48,9 +48,6 @@
 #include <linux/dma-buf.h>
 #include <sync.h>
 #include <sw_sync.h>
-#ifdef CONFIG_MACH_ASUS_X00T
-#include <linux/wakelock.h>
-#endif
 
 #include "mdss_fb.h"
 #include "mdss_mdp_splash_logo.h"
@@ -59,11 +56,14 @@
 #include "mdss_smmu.h"
 #include "mdss_mdp.h"
 
-#include "mdss_livedisplay.h"
-
 #ifdef CONFIG_MACH_ASUS_X00T
+#include <linux/wakelock.h>
 static struct wake_lock early_unblank_wakelock;
 extern bool lcd_suspend_flag;
+#endif
+
+#ifdef CONFIG_KLAPSE
+#include <linux/klapse.h>
 #endif
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
@@ -91,6 +91,15 @@ extern bool lcd_suspend_flag;
  * Default value is set to 1 sec.
  */
 #define MDP_TIME_PERIOD_CALC_FPS_US	1000000
+
+#define MDSS_BRIGHT_TO_BL_DIM(out, v) do {\
+			out = (12*v*v+1393*v+3060)/4465;\
+			} while (0)
+bool backlight_dimmer = false;
+module_param(backlight_dimmer, bool, 0644);
+
+int backlight_min = 0;
+module_param(backlight_min, int, 0644);
 
 #ifdef CONFIG_MACH_ASUS_X00T
 static void asus_lcd_early_unblank_func(struct work_struct *);
@@ -306,10 +315,18 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 	if (value > mfd->panel_info->brightness_max)
 		value = mfd->panel_info->brightness_max;
 
-	/* This maps android backlight level 0 to 255 into
-	   driver backlight level 0 to bl_max with rounding */
-	MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
-				mfd->panel_info->brightness_max);
+	// Boeffla: apply min limits for LCD backlight (0 is exception for display off)
+	if (value != 0 && value < backlight_min)
+		value = backlight_min;
+
+	if (backlight_dimmer) {
+		MDSS_BRIGHT_TO_BL_DIM(bl_lvl, value);
+	} else {
+		/* This maps android backlight level 0 to 255 into
+		   driver backlight level 0 to bl_max with rounding */
+		MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
+					mfd->panel_info->brightness_max);
+	}
 
 	if (!bl_lvl && value)
 		bl_lvl = 1;
@@ -321,6 +338,10 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 		mutex_unlock(&mfd->bl_lock);
 	}
 	mfd->bl_level_usr = bl_lvl;
+
+#ifdef CONFIG_KLAPSE
+	set_rgb_slider(bl_lvl);
+#endif
 }
 
 static enum led_brightness mdss_fb_get_bl_brightness(
@@ -537,11 +558,16 @@ static void __mdss_fb_idle_notify_work(struct work_struct *work)
 
 	/* Notify idle-ness here */
 	pr_debug("Idle timeout %dms expired!\n", mfd->idle_time);
-	if (mfd->idle_time)
-		sysfs_notify(&mfd->fbi->dev->kobj, NULL, "idle_notify");
-	mfd->idle_state = MDSS_FB_IDLE;
-}
 
+	mfd->idle_state = MDSS_FB_IDLE;
+	/*
+	 * idle_notify node events are used to reduce MDP load when idle,
+	 * this is not needed for command mode panels.
+	 */
+	if (mfd->idle_time && mfd->panel.type != MIPI_CMD_PANEL)
+		sysfs_notify(&mfd->fbi->dev->kobj, NULL, "idle_notify");
+	sysfs_notify(&mfd->fbi->dev->kobj, NULL, "idle_state");
+}
 
 static ssize_t mdss_fb_get_fps_info(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -601,6 +627,26 @@ static ssize_t mdss_fb_get_idle_notify(struct device *dev,
 		work_busy(&mfd->idle_notify_work.work) ? "no" : "yes");
 
 	return ret;
+}
+
+static ssize_t mdss_fb_get_idle_state(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct msm_fb_data_type *mfd = fbi->par;
+	const char *state_strs[] = {
+		[MDSS_FB_NOT_IDLE] = "active",
+		[MDSS_FB_IDLE_TIMER_RUNNING] = "pending",
+		[MDSS_FB_IDLE] = "idle",
+	};
+	int state = mfd->idle_state;
+	const char *s;
+	if (state < ARRAY_SIZE(state_strs) && state_strs[state])
+		s = state_strs[state];
+	else
+		s = "invalid";
+
+	return scnprintf(buf, PAGE_SIZE, "%s\n", s);
 }
 
 static ssize_t mdss_fb_get_panel_info(struct device *dev,
@@ -939,6 +985,7 @@ static DEVICE_ATTR(show_blank_event, S_IRUGO, mdss_mdp_show_blank_event, NULL);
 static DEVICE_ATTR(idle_time, S_IRUGO | S_IWUSR | S_IWGRP,
 	mdss_fb_get_idle_time, mdss_fb_set_idle_time);
 static DEVICE_ATTR(idle_notify, S_IRUGO, mdss_fb_get_idle_notify, NULL);
+static DEVICE_ATTR(idle_state, S_IRUGO, mdss_fb_get_idle_state, NULL);
 static DEVICE_ATTR(msm_fb_panel_info, S_IRUGO, mdss_fb_get_panel_info, NULL);
 static DEVICE_ATTR(msm_fb_src_split_info, S_IRUGO, mdss_fb_get_src_split_info,
 	NULL);
@@ -960,6 +1007,7 @@ static struct attribute *mdss_fb_attrs[] = {
 	&dev_attr_show_blank_event.attr,
 	&dev_attr_idle_time.attr,
 	&dev_attr_idle_notify.attr,
+	&dev_attr_idle_state.attr,
 	&dev_attr_msm_fb_panel_info.attr,
 	&dev_attr_msm_fb_src_split_info.attr,
 	&dev_attr_msm_fb_thermal_level.attr,
@@ -982,8 +1030,7 @@ static int mdss_fb_create_sysfs(struct msm_fb_data_type *mfd)
 	rc = sysfs_create_group(&mfd->fbi->dev->kobj, &mdss_fb_attr_group);
 	if (rc)
 		pr_err("sysfs group creation failed, rc=%d\n", rc);
-
-	return mdss_livedisplay_create_sysfs(mfd);
+	return rc;
 }
 
 static void mdss_fb_remove_sysfs(struct msm_fb_data_type *mfd)
@@ -1417,8 +1464,7 @@ static int mdss_fb_probe(struct platform_device *pdev)
 
 	INIT_DELAYED_WORK(&mfd->idle_notify_work, __mdss_fb_idle_notify_work);
 #ifdef CONFIG_MACH_ASUS_X00T
-	INIT_DELAYED_WORK(&mfd->early_unblank_work,
-				asus_lcd_early_unblank_func);
+	INIT_DELAYED_WORK(&mfd->early_unblank_work, asus_lcd_early_unblank_func);
 	mfd->early_unblank_work_queued = false;
 #endif
 
@@ -1636,26 +1682,25 @@ static void asus_lcd_early_unblank_func(struct work_struct *work)
 {
 	struct delayed_work *dw = to_delayed_work(work);
 	struct msm_fb_data_type *mfd = container_of(dw, struct msm_fb_data_type,
-							early_unblank_work);
+			early_unblank_work);
 	struct fb_info *fbi;
 
 	if (!mfd) {
-		pr_err("cannot get mfd from work\n");
+		pr_err("[Display] cannot get mfd from work\n");
 		return;
 	}
 
 	fbi = mfd->fbi;
 	if (!fbi)
 		return;
-
 	wake_lock_timeout(&early_unblank_wakelock,msecs_to_jiffies(300));
+	printk("[Display] Early unblank func +++ \n");
 	fb_blank(fbi, FB_BLANK_UNBLANK);
-
+	printk("[Display] Early unblank func --- \n");
 	lcd_suspend_flag = false;
 	mfd->early_unblank_work_queued = false;
 }
 #endif
-
 static int mdss_fb_pm_suspend(struct device *dev)
 {
 	struct msm_fb_data_type *mfd = dev_get_drvdata(dev);
@@ -1666,20 +1711,19 @@ static int mdss_fb_pm_suspend(struct device *dev)
 
 	if (!mfd)
 		return -ENODEV;
-
 #ifdef CONFIG_MACH_ASUS_X00T
 	fbi = mfd->fbi;
 	if (!fbi)
 		return -ENODEV;
 
 	if (mfd->index == 0) {
-		if (lcd_suspend_flag == false) {
+		if(lcd_suspend_flag == false) {
+			printk("[Display] display suspend, blank display.\n");
 			fb_blank(fbi, FB_BLANK_POWERDOWN);
 			lcd_suspend_flag = true;
 		}
 	}
 #endif
-
 	dev_dbg(dev, "display pm suspend\n");
 
 	rc = mdss_fb_suspend_sub(mfd);
@@ -1723,17 +1767,17 @@ static int mdss_fb_pm_resume(struct device *dev)
 
 	if (mfd->mdp.footswitch_ctrl)
 		mfd->mdp.footswitch_ctrl(true);
-
 #ifdef CONFIG_MACH_ASUS_X00T
 	rc = mdss_fb_resume_sub(mfd);
+
 	if (g_resume_from_fp && mfd->index == 0) {
 		if (!mfd->early_unblank_work_queued) {
-			pr_debug("doing unblank from resume, due to fp.\n");
+			printk("[Display] doing unblank from resume, due to fp.\n");
 			mfd->early_unblank_work_queued = true;
-			queue_delayed_work(asus_lcd_early_unblank_wq,
-						&mfd->early_unblank_work, 0);
-		} else
-			pr_debug("mfd->early_unblank_work_queued returns true.\n");
+			queue_delayed_work(asus_lcd_early_unblank_wq, &mfd->early_unblank_work, 0);
+		} else {
+			printk("[Display] mfd->early_unblank_work_queued returns true.\n");
+		}
 	}
 
 	return rc;
@@ -1763,6 +1807,7 @@ static struct platform_driver mdss_fb_driver = {
 		.name = "mdss_fb",
 		.of_match_table = mdss_fb_dt_match,
 		.pm = &mdss_fb_pm_ops,
+		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 	},
 };
 
@@ -3215,14 +3260,18 @@ static int __mdss_fb_sync_buf_done_callback(struct notifier_block *p,
 			ret = __mdss_fb_wait_for_fence_sub(sync_pt_data,
 				sync_pt_data->temp_fen, fence_cnt);
 		}
-		if (mfd->idle_time && !mod_delayed_work(system_wq,
+		if (mfd->idle_time) {
+			if (!mod_delayed_work(system_wq,
 					&mfd->idle_notify_work,
 					msecs_to_jiffies(mfd->idle_time)))
-			pr_debug("fb%d: restarted idle work\n",
-					mfd->index);
+				pr_debug("fb%d: restarted idle work\n",
+						mfd->index);
+			mfd->idle_state = MDSS_FB_IDLE_TIMER_RUNNING;
+		} else {
+			mfd->idle_state = MDSS_FB_IDLE;
+		}
 		if (ret == -ETIME)
 			ret = NOTIFY_BAD;
-		mfd->idle_state = MDSS_FB_IDLE_TIMER_RUNNING;
 		break;
 	case MDP_NOTIFY_FRAME_FLUSHED:
 		pr_debug("%s: frame flushed\n", sync_pt_data->fence_name);
@@ -4076,7 +4125,7 @@ static int mdss_fb_set_par(struct fb_info *info)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
 	struct fb_var_screeninfo *var = &info->var;
-	int old_imgType, new_format;
+	int old_imgType, old_format, out_format;
 	int ret = 0;
 
 	ret = mdss_fb_pan_idle(mfd);
@@ -4159,11 +4208,12 @@ static int mdss_fb_set_par(struct fb_info *info)
 		mfd->fbi->fix.smem_len = PAGE_ALIGN(mfd->fbi->fix.line_length *
 				mfd->fbi->var.yres) * mfd->fb_page;
 
-	new_format = mdss_grayscale_to_mdp_format(var->grayscale);
-	if (!IS_ERR_VALUE(new_format)) {
-		if (new_format != mfd->panel_info->out_format)
+	old_format = mfd->panel_info->out_format;
+	out_format = mdss_grayscale_to_mdp_format(var->grayscale);
+	if (!IS_ERR_VALUE(out_format)) {
+		mfd->panel_info->out_format = out_format;
+		if (old_format != mfd->panel_info->out_format)
 			mfd->panel_reconfig = true;
-		mfd->panel_info->out_format = new_format;
 	}
 
 	if (mdss_fb_is_hdmi_primary(mfd) && mfd->panel_reconfig)
@@ -4645,96 +4695,63 @@ err:
 }
 
 static int __mdss_fb_copy_destscaler_data(struct fb_info *info,
-		struct mdp_layer_commit *commit)
+		struct mdp_layer_commit *commit,
+		struct mdp_destination_scaler_data *ds_data,
+		struct mdp_scale_data_v2 *scale_data)
 {
 	int    i = 0;
 	int    ret = 0;
-	u32    data_size;
 	struct mdp_destination_scaler_data __user *ds_data_user;
-	struct mdp_destination_scaler_data *ds_data = NULL;
 	void __user *scale_data_user;
-	struct mdp_scale_data_v2 *scale_data = NULL;
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
 	struct mdss_data_type *mdata;
 
 	if (!mfd || !mfd->mdp.private1) {
 		pr_err("mfd is NULL or operation not permitted\n");
-		ret = -EINVAL;
-		goto err;
+		return -EINVAL;
 	}
 
 	mdata = mfd_to_mdata(mfd);
 	if (!mdata) {
 		pr_err("mdata is NULL or not initialized\n");
-		ret = -EINVAL;
-		goto err;
+		return -EINVAL;
 	}
 
 	if (commit->commit_v1.dest_scaler_cnt >
 			mdata->scaler_off->ndest_scalers) {
 		pr_err("Commit destination scaler cnt larger than HW setting, commit cnt=%d\n",
 				commit->commit_v1.dest_scaler_cnt);
-		ret = -EINVAL;
-		goto err;
+		return -EINVAL;
 	}
 
 	ds_data_user = (struct mdp_destination_scaler_data *)
 		commit->commit_v1.dest_scaler;
-	data_size = commit->commit_v1.dest_scaler_cnt *
-		sizeof(struct mdp_destination_scaler_data);
-	ds_data = kzalloc(data_size, GFP_KERNEL);
-	if (!ds_data) {
-		ret = -ENOMEM;
-		goto err;
-	}
-
-	ret = copy_from_user(ds_data, ds_data_user, data_size);
+	ret = copy_from_user(ds_data, ds_data_user,
+		commit->commit_v1.dest_scaler_cnt * sizeof(*ds_data));
 	if (ret) {
 		pr_err("dest scaler data copy from user failed\n");
-		goto err;
+		return ret;
 	}
 
 	commit->commit_v1.dest_scaler = ds_data;
 
 	for (i = 0; i < commit->commit_v1.dest_scaler_cnt; i++) {
-		scale_data = NULL;
+		if (!ds_data[i].scale)
+			continue;
 
-		if (ds_data[i].scale) {
-			scale_data_user = to_user_ptr(ds_data[i].scale);
-			data_size = sizeof(struct mdp_scale_data_v2);
-
-			scale_data = kzalloc(data_size, GFP_KERNEL);
-			if (!scale_data) {
-				ds_data[i].scale = 0;
-				ret = -ENOMEM;
-				goto err;
-			}
-
-			ds_data[i].scale = to_user_u64(scale_data);
-		}
-
-		if (scale_data && (ds_data[i].flags &
-					(MDP_DESTSCALER_SCALE_UPDATE |
-					MDP_DESTSCALER_ENHANCER_UPDATE))) {
-			ret = copy_from_user(scale_data, scale_data_user,
-					data_size);
+		scale_data_user = to_user_ptr(ds_data[i].scale);
+		ds_data[i].scale = to_user_u64(&scale_data[i]);
+		if (ds_data[i].flags & (MDP_DESTSCALER_SCALE_UPDATE |
+					MDP_DESTSCALER_ENHANCER_UPDATE)) {
+			ret = copy_from_user(scale_data + i, scale_data_user,
+					     sizeof(*scale_data));
 			if (ret) {
 				pr_err("scale data copy from user failed\n");
-				kfree(scale_data);
-				goto err;
+				return ret;
 			}
+		} else {
+			memset(scale_data + i, 0, sizeof(*scale_data));
 		}
-	}
-
-	return ret;
-
-err:
-	if (ds_data) {
-		for (i--; i >= 0; i--) {
-			scale_data = to_user_ptr(ds_data[i].scale);
-			kfree(scale_data);
-		}
-		kfree(ds_data);
 	}
 
 	return ret;
@@ -4746,15 +4763,16 @@ static int mdss_fb_atomic_commit_ioctl(struct fb_info *info,
 	int ret, i = 0, j = 0, rc;
 	struct mdp_layer_commit  commit;
 	u32 buffer_size, layer_count;
-	struct mdp_input_layer *layer, *layer_list = NULL;
+	struct mdp_input_layer *layer, layer_list[MAX_LAYER_COUNT];
 	struct mdp_input_layer __user *input_layer_list;
-	struct mdp_output_layer *output_layer = NULL;
+	struct mdp_output_layer output_layer;
 	struct mdp_output_layer __user *output_layer_user;
-	struct mdp_destination_scaler_data *ds_data = NULL;
 	struct mdp_destination_scaler_data __user *ds_data_user;
 	struct msm_fb_data_type *mfd;
 	struct mdss_overlay_private *mdp5_data = NULL;
 	struct mdss_data_type *mdata;
+	struct mdp_destination_scaler_data ds_data[2];
+	struct mdp_scale_data_v2 scale_data[2];
 
 	ret = copy_from_user(&commit, argp, sizeof(struct mdp_layer_commit));
 	if (ret) {
@@ -4787,20 +4805,13 @@ static int mdss_fb_atomic_commit_ioctl(struct fb_info *info,
 
 	output_layer_user = commit.commit_v1.output_layer;
 	if (output_layer_user) {
-		buffer_size = sizeof(struct mdp_output_layer);
-		output_layer = kzalloc(buffer_size, GFP_KERNEL);
-		if (!output_layer) {
-			pr_err("unable to allocate memory for output layer\n");
-			return -ENOMEM;
-		}
-
-		ret = copy_from_user(output_layer,
-			output_layer_user, buffer_size);
+		ret = copy_from_user(&output_layer, output_layer_user,
+				     sizeof(output_layer));
 		if (ret) {
 			pr_err("layer list copy from user failed\n");
 			goto err;
 		}
-		commit.commit_v1.output_layer = output_layer;
+		commit.commit_v1.output_layer = &output_layer;
 	}
 
 	layer_count = commit.commit_v1.input_layer_cnt;
@@ -4812,13 +4823,6 @@ static int mdss_fb_atomic_commit_ioctl(struct fb_info *info,
 		goto err;
 	} else if (layer_count) {
 		buffer_size = sizeof(struct mdp_input_layer) * layer_count;
-		layer_list = kzalloc(buffer_size, GFP_KERNEL);
-		if (!layer_list) {
-			pr_err("unable to allocate memory for layers\n");
-			ret = -ENOMEM;
-			goto err;
-		}
-
 		ret = copy_from_user(layer_list, input_layer_list, buffer_size);
 		if (ret) {
 			pr_err("layer list copy from user failed\n");
@@ -4866,12 +4870,12 @@ static int mdss_fb_atomic_commit_ioctl(struct fb_info *info,
 			ret = -EPERM;
 			goto err;
 		}
-		ret = __mdss_fb_copy_destscaler_data(info, &commit);
+		ret = __mdss_fb_copy_destscaler_data(info, &commit, ds_data,
+						     scale_data);
 		if (ret) {
 			pr_err("copy dest scaler failed\n");
 			goto err;
 		}
-		ds_data = commit.commit_v1.dest_scaler;
 	}
 
 	ATRACE_BEGIN("ATOMIC_COMMIT");
@@ -4901,7 +4905,7 @@ static int mdss_fb_atomic_commit_ioctl(struct fb_info *info,
 
 	if (output_layer_user) {
 		rc = copy_to_user(&output_layer_user->buffer.fence,
-			&output_layer->buffer.fence,
+			&output_layer.buffer.fence,
 			sizeof(int));
 
 		if (rc)
@@ -4913,13 +4917,6 @@ err:
 		kfree(layer_list[i].scale);
 		layer_list[i].scale = NULL;
 		mdss_mdp_free_layer_pp_info(&layer_list[i]);
-	}
-	kfree(layer_list);
-	kfree(output_layer);
-	if (ds_data) {
-		for (i = 0; i < commit.commit_v1.dest_scaler_cnt; i++)
-			kfree(to_user_ptr(ds_data[i].scale));
-		kfree(ds_data);
 	}
 
 	return ret;
@@ -5315,12 +5312,9 @@ int __init mdss_fb_init(void)
 		return rc;
 
 #ifdef CONFIG_MACH_ASUS_X00T
-	asus_lcd_early_unblank_wq =
-			create_singlethread_workqueue("display_early_wq");
-	wake_lock_init(&early_unblank_wakelock, WAKE_LOCK_SUSPEND,
-			"early_unblank-update");
+	asus_lcd_early_unblank_wq = create_singlethread_workqueue("display_early_wq");
+	wake_lock_init(&early_unblank_wakelock, WAKE_LOCK_SUSPEND, "early_unblank-update");
 #endif
-
 	return 0;
 }
 
