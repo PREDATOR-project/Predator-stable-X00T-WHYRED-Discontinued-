@@ -55,11 +55,8 @@
 			qcom,lmh-dcvs = <&lmh_dcvs0>;
 			qcom,ea = <&ea0>;
 			efficiency = <1024>;
-<<<<<<< HEAD
-=======
 			capacity-dmips-mhz = <1024>;
 			freq-energy-model;
->>>>>>> 079d491134e1... dts: sdm660: Enable freq-energy-model
 			sched-energy-costs = <&CPU_COST_0 &CLUSTER_COST_0>;
 			next-level-cache = <&L2_0>;
 			L2_0: l2-cache {
@@ -90,14 +87,8 @@
 			qcom,lmh-dcvs = <&lmh_dcvs0>;
 			qcom,ea = <&ea1>;
 			efficiency = <1024>;
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
 			capacity-dmips-mhz = <1024>;
-=======
 			freq-energy-model;
->>>>>>> 9b7e0ffa0cc98... dts: sdm660: Enable freq-energy-model
->>>>>>> 079d491134e1... dts: sdm660: Enable freq-energy-model
 			sched-energy-costs = <&CPU_COST_0 &CLUSTER_COST_0>;
 			next-level-cache = <&L2_0>;
 			L1_I_1: l1-icache {
@@ -122,14 +113,8 @@
 			qcom,lmh-dcvs = <&lmh_dcvs0>;
 			qcom,ea = <&ea2>;
 			efficiency = <1024>;
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
 			capacity-dmips-mhz = <1024>;
-=======
 			freq-energy-model;
->>>>>>> 9b7e0ffa0cc98... dts: sdm660: Enable freq-energy-model
->>>>>>> 079d491134e1... dts: sdm660: Enable freq-energy-model
 			sched-energy-costs = <&CPU_COST_0 &CLUSTER_COST_0>;
 			next-level-cache = <&L2_0>;
 			L1_I_2: l1-icache {
@@ -154,14 +139,8 @@
 			qcom,lmh-dcvs = <&lmh_dcvs0>;
 			qcom,ea = <&ea3>;
 			efficiency = <1024>;
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
 			capacity-dmips-mhz = <1024>;
-=======
 			freq-energy-model;
->>>>>>> 9b7e0ffa0cc98... dts: sdm660: Enable freq-energy-model
->>>>>>> 079d491134e1... dts: sdm660: Enable freq-energy-model
 			sched-energy-costs = <&CPU_COST_0 &CLUSTER_COST_0>;
 			next-level-cache = <&L2_0>;
 			L1_I_3: l1-icache {
@@ -186,14 +165,8 @@
 			qcom,lmh-dcvs = <&lmh_dcvs1>;
 			qcom,ea = <&ea4>;
 			efficiency = <1638>;
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
 			capacity-dmips-mhz = <1638>;
-=======
 			freq-energy-model;
->>>>>>> 9b7e0ffa0cc98... dts: sdm660: Enable freq-energy-model
->>>>>>> 079d491134e1... dts: sdm660: Enable freq-energy-model
 			sched-energy-costs = <&CPU_COST_1 &CLUSTER_COST_1>;
 			next-level-cache = <&L2_1>;
 			L2_1: l2-cache {
@@ -222,11 +195,7 @@
 			qcom,lmh-dcvs = <&lmh_dcvs1>;
 			qcom,ea = <&ea5>;
 			efficiency = <1638>;
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
 			capacity-dmips-mhz = <1638>;
-=======
 			freq-energy-model;
 >>>>>>> 9b7e0ffa0cc98... dts: sdm660: Enable freq-energy-model
 >>>>>>> 079d491134e1... dts: sdm660: Enable freq-energy-model
@@ -254,14 +223,8 @@
 			qcom,lmh-dcvs = <&lmh_dcvs1>;
 			qcom,ea = <&ea6>;
 			efficiency = <1638>;
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
 			capacity-dmips-mhz = <1638>;
-=======
 			freq-energy-model;
->>>>>>> 9b7e0ffa0cc98... dts: sdm660: Enable freq-energy-model
->>>>>>> 079d491134e1... dts: sdm660: Enable freq-energy-model
 			sched-energy-costs = <&CPU_COST_1 &CLUSTER_COST_1>;
 			next-level-cache = <&L2_1>;
 			L1_I_102: l1-icache {
@@ -286,14 +249,8 @@
 			qcom,lmh-dcvs = <&lmh_dcvs1>;
 			qcom,ea = <&ea7>;
 			efficiency = <1638>;
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
 			capacity-dmips-mhz = <1638>;
-=======
 			freq-energy-model;
->>>>>>> 9b7e0ffa0cc98... dts: sdm660: Enable freq-energy-model
->>>>>>> 079d491134e1... dts: sdm660: Enable freq-energy-model
 			sched-energy-costs = <&CPU_COST_1 &CLUSTER_COST_1>;
 			next-level-cache = <&L2_1>;
 			L1_I_103: l1-icache {
