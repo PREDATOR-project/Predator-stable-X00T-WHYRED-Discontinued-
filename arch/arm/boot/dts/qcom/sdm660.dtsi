@@ -197,8 +197,6 @@
 			efficiency = <1638>;
 			capacity-dmips-mhz = <1638>;
 			freq-energy-model;
->>>>>>> 9b7e0ffa0cc98... dts: sdm660: Enable freq-energy-model
->>>>>>> 079d491134e1... dts: sdm660: Enable freq-energy-model
 			sched-energy-costs = <&CPU_COST_1 &CLUSTER_COST_1>;
 			next-level-cache = <&L2_1>;
 			L1_I_101: l1-icache {
