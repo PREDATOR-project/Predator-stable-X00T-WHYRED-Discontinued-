@@ -4104,8 +4104,7 @@ void asus_adapter_adc_work(struct work_struct *work)
 					usb_max_current = ICL_2000mA;
 					break;
 	 			}
-			break;
-		}
+		    }
 
     	usb_max_current = ICL_3000mA;
 
