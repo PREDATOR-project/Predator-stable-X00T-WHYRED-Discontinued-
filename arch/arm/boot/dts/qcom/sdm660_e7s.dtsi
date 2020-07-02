@@ -35,6 +35,7 @@
 
 	chosen {
 		stdout-path = "serial0";
+		bootargs = "rcupdate.rcu_expedited=1";
 	};
 
 	psci {
@@ -292,10 +293,12 @@
 
 		CPU_COST_0: core-cost0 {
 			busy-cost-data = <
-				427 1456
-				538 1566
-				671 1624
-				707 1652
+			633600  24
+			902400  43
+			1113600 64
+			1401600 92
+			1536000 112
+			1612800 133
 			>;
 			idle-cost-data = <
 				20 16 12 8
@@ -303,10 +306,10 @@
 		};
 		CPU_COST_1: core-cost1 {
 			busy-cost-data = <
-				651 1943
-				802 2187
-				1021 2596
-				1024 2695
+			1113600 1792
+			1401600 2819
+			1747200 4583
+			1804800 5038
 			>;
 			idle-cost-data = <
 				100 80 60 40
@@ -314,10 +317,12 @@
 		};
 		CLUSTER_COST_0: cluster-cost0 {
 			busy-cost-data = <
-				427 20
-				538 29
-				671 35
-				707 49
+			633600  8
+			902400  14
+			1113600 20
+			1401600 29
+			1536000 35
+			1612800 39
 			>;
 			idle-cost-data = <
 				4 3 2 1
@@ -325,10 +330,10 @@
 		};
 		CLUSTER_COST_1: cluster-cost1 {
 			busy-cost-data = <
-				651 135
-				802 193
-				1021 272
-				1024 292
+			1113600 135
+			1401600 193
+			1747200 272
+			1804800 292
 			>;
 			idle-cost-data = <
 				4 3 2 1
@@ -364,7 +369,7 @@
 					dev = "/dev/block/platform/soc/c0c4000.sdhci/by-name/system";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,discard";
-					fsmgr_flags = "wait";
+					fsmgr_flags = "wait,verify";
 					status = "ok";
 				};
 				vendor {
@@ -372,7 +377,7 @@
 					dev = "/dev/block/platform/soc/c0c4000.sdhci/by-name/vendor";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,discard";
-					fsmgr_flags = "wait";
+					fsmgr_flags = "wait,verify";
 					status = "ok";
 				};
 			};
@@ -464,7 +469,7 @@
 			alloc-ranges = <0 0x00000000 0 0xffffffff>;
 			reusable;
 			alignment = <0 0x400000>;
-			size = <0 0x2c00000>;
+			size = <0 0x8000000>;
 			linux,cma-default;
 		};
 
@@ -903,10 +908,10 @@
 		compatible = "qcom,msm-thermal";
 		qcom,sensor-id = <1>;
 		qcom,poll-ms = <100>;
-		qcom,therm-reset-temp = <90>;
-		qcom,core-limit-temp = <60>;
+		qcom,therm-reset-temp = <115>;
+		qcom,core-limit-temp = <70>;
 		qcom,core-temp-hysteresis = <10>;
-		qcom,hotplug-temp = <80>;
+		qcom,hotplug-temp = <105>;
 		qcom,hotplug-temp-hysteresis = <20>;
 		qcom,online-hotplug-core;
 		qcom,synchronous-cluster-id = <0 1>;
@@ -1205,7 +1210,7 @@
 
 	cpubw: qcom,cpubw {
 		compatible = "qcom,devbw";
-		governor = "bw_hwmon";
+		governor = "performance";
 		qcom,src-dst-ports = <1 512>;
 		qcom,active-only;
 		qcom,bw-tbl =
@@ -1371,14 +1376,13 @@
 			<  1843200000 0x04040060 0x094c004c 0x3 8 >;
 
 		qcom,pwrcl-speedbin3-v0 =
-                        <   300000000 0x0004000f 0x01200020 0x1 1 >,
-                        <   633600000 0x05040021 0x03200020 0x1 2 >,
-                        <   902400000 0x0404002f 0x04260026 0x1 3 >,
-                        <  1113600000 0x0404003a 0x052e002e 0x2 4 >,
-                        <  1401600000 0x04040049 0x073a003a 0x2 5 >,
-                        <  1536000000 0x04040050 0x08400040 0x2 6 >,
-                        <  1747200000 0x0404005b 0x09480048 0x2 7 >,
-                        <  1843200000 0x04040060 0x094c004c 0x3 8 >;
+			<   300000000 0x0004000f 0x01200020 0x1 1 >,
+			<   633600000 0x05040021 0x03200020 0x1 2 >,
+			<   902400000 0x0404002f 0x04260026 0x1 3 >,
+			<  1113600000 0x0404003a 0x052e002e 0x2 4 >,
+			<  1401600000 0x04040049 0x073a003a 0x2 5 >,
+			<  1536000000 0x04040050 0x08400040 0x2 6 >,
+			<  1612800000 0x04040054 0x09430043 0x2 7 >;
 
 		qcom,pwrcl-speedbin4-v0 =
 			<   300000000 0x0004000f 0x01200020 0x1 1 >,
@@ -1388,7 +1392,7 @@
 			<  1401600000 0x04040049 0x073a003a 0x2 5 >,
 			<  1536000000 0x04040050 0x08400040 0x2 6 >,
 			<  1747200000 0x0404005b 0x09480048 0x2 7 >,
-                        <  1843200000 0x04040060 0x094c004c 0x3 8 >;
+			<  1843200000 0x04040060 0x094c004c 0x3 8 >;
 
 		qcom,perfcl-speedbin0-v0 =
 			<   300000000 0x0004000f 0x01200020 0x1 1 >,
@@ -1413,18 +1417,14 @@
 			<  1113600000 0x0404003a 0x052e002e 0x1 2 >,
 			<  1401600000 0x04040049 0x073a003a 0x2 3 >,
 			<  1747200000 0x0404005b 0x09480048 0x2 4 >,
-			<  1804800000 0x0404005e 0x094b004b 0x2 5 >,
-			<  2150400000 0x04040070 0x0b590059 0x2 6 >,
-			<  2208000000 0x04040073 0x0b5c005c 0x3 7 >;
+			<  1804800000 0x0404005e 0x094b004b 0x2 5 >;
 
 		qcom,perfcl-speedbin4-v0 =
 			<   300000000 0x0004000f 0x01200020 0x1 1 >,
 			<  1113600000 0x0404003a 0x052e002e 0x1 2 >,
 			<  1401600000 0x04040049 0x073a003a 0x2 3 >,
 			<  1747200000 0x0404005b 0x09480048 0x2 4 >,
-			<  1958400000 0x04040066 0x0a510051 0x2 5 >,
-			<  2150400000 0x04040070 0x0b590059 0x2 6 >,
-			<  2208000000 0x04040073 0x0b5c005c 0x3 7 >;
+			<  1958400000 0x04040066 0x0a510051 0x2 5 >;
 
 		qcom,up-timer = <1000 1000>;
 		qcom,down-timer = <1000 1000>;
@@ -1473,16 +1473,24 @@
 		qcom,governor-per-policy;
 
 		qcom,cpufreq-table-0 =
+			<  633600 >,
+			<  902400 >,
 			< 1113600 >,
 			< 1401600 >,
 			< 1536000 >,
-			< 1747200 >;
+			< 1612800 >,
+			< 1747200 >,
+			< 1843200 >;
 
 		qcom,cpufreq-table-4 =
 			< 1113600 >,
 			< 1401600 >,
 			< 1747200 >,
-			< 1804800 >;
+			< 1804800 >,
+			< 1958400 >,
+			< 2150400 >,
+			< 2208000 >,
+			< 2457600 >;
 	};
 
 	sdhc_1: sdhci@c0c4000 {
@@ -2770,4 +2778,3 @@
 
 #include "sdm660-mdss.dtsi"
 #include "sdm660-mdss-pll.dtsi"
-#include "sdm660-thermal.dtsi"
