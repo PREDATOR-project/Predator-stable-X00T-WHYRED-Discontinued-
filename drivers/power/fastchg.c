@@ -23,7 +23,7 @@
 
 #include <linux/kobject.h>
 #include <linux/sysfs.h>
-#include <linux/fastchg.h>
+#include "fastchg.h"
 #include <linux/string.h>
 #include <linux/module.h>
 
