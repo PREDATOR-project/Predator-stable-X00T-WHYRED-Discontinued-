@@ -40,8 +40,8 @@ export LD_LIBRARY_PATH="/home/loli/install/bin/../lib:$PATH"
            fi
    cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3
 
-# Zipping
-    cd AnyKernel3 || exit 1
-    zip -r9 Predator-TIREX-Kernel-whyred-"${TANGGAL}-${SHA}".zip * -x .git README.md *.zip
-    fi #ngentod
-    cd .. #well
+# Compress to zip file
+cd $ZIP_DIR
+make clean &>/dev/null
+cd ..
+echo -e "The build is complete, and is in the directory $ZIP_DIR"
