@@ -36,16 +36,17 @@ CORES=$(grep -c ^processor /proc/cpuinfo)
 THREAD="-j$CORES"
 
 # Export
-export ARCH=arm64
-export SUBARCH=arm64
-export CROSS_COMPILE
-export CROSS_COMPILE="$KERNEL_DIR/toolchain64/bin/aarch64-linux-gnu-"
-export CROSS_COMPILE_ARM32="$KERNEL_DIR/toolchain32/bin/arm-eabi-"
-export CC=$CLANG_DIR/bin/clang-11
-export KBUILD_COMPILER_STRING=$($CC --version | head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g' -e 's/[[:space:]]*$//')
-export CLANG_TREPLE=aarch64-linux-gnu-
-export KBUILD_BUILD_USER="builder"
-export KBUILD_BUILD_HOST="MohammadIqbal"
+export KBUILD_BUILD_USER=builder
+export KBUILD_BUILD_HOST=MohammadIqbal
+export ARCH=arm64 && export LD_LIBRARY_PATH="/home/loli/install/bin/../lib:$PATH"
+
+#compile
+PATH="/home/loli/install/bin:${PATH}"
+ARCH=arm64 \
+CC=clang \
+CLANG_TRIPLE=aarch64-linux-gnu- \
+CROSS_COMPILE=aarch64-linux-gnu- \
+CROSS_COMPILE_ARM32=arm-linux-gnueabi-
 
 # Mkdir
 if ! [ -d "$KERNEL_DIR/out" ]; then
@@ -56,7 +57,7 @@ fi
 
 # Start building the kernel
 make  O=out $CONFIG $THREAD &>/dev/null
-make  O=out $THREAD & pid=$!
+make -C $(pwd) -j$(nproc) O=out $THREAD & pid=$!
 spin[0]="-"
 spin[1]="\\"
 spin[2]="|"
