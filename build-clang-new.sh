@@ -13,7 +13,7 @@ fi
 # Main Environment
 KERNEL_DIR=/home/loli/kernel
 IMAGE=/home/loli/kernel/out/arch/arm64/boot/Image.gz-dtb
-ZIP_DIR=/home/loli/kernel/AnyKernel3
+ZIP_DIR=/home/loli/kernel/whyred
 CLANG_DIR=/home/loli/install
 CONFIG_DIR=$KERNEL_DIR/arch/arm64/configs
 CORES=$(grep -c ^processor /proc/cpuinfo)
@@ -41,7 +41,7 @@ export LD_LIBRARY_PATH="/home/loli/install/bin/../lib:$PATH"
    cp out/arch/arm64/boot/Image.gz-dtb whyred
 
 # Compress to zip file
-cd /home/loli/kernel/AnyKernel3
+cd /home/loli/kernel/whyred
 make clean &>/dev/null
 make normal &>/dev/null
 cd ..
