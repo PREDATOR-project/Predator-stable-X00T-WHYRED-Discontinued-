@@ -41,7 +41,7 @@ export LD_LIBRARY_PATH="/home/loli/install/bin/../lib:$PATH"
    cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3
 
 # Compress to zip file
-cd $ZIP_DIR
+cd /home/loli/AnyKernele
 make clean &>/dev/null
 cd ..
 echo -e "The build is complete, and is in the directory $ZIP_DIR"
