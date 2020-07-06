@@ -41,7 +41,7 @@ export LD_LIBRARY_PATH="/home/loli/install/bin/../lib:$PATH"
    cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3
 
 # Compress to zip file
-cd /home/loli/AnyKernele
+cd /home/loli/kernel/AnyKernel3
 make clean &>/dev/null
 make normal &>/dev/null
 cd ..
