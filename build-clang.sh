@@ -34,7 +34,6 @@ export LD_LIBRARY_PATH="/home/loli/install/bin/../lib:$PATH"
            CROSS_COMPILE=aarch64-linux-gnu- \
            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
            O=out \
-           -j60 \
            -l50 2>&1| tee build.log
            if ! [ -a "$IMAGE" ]; then
                finerr
