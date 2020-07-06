@@ -20,7 +20,7 @@ fi
 
 # Clone AnyKernel
 if ! [ -d "$PWD/AnyKernel" ]; then
-    git https://github.com/PREDATOR-project/AnyKernel3.git -b Extended-Kernel --depth=1 AnyKernel3
+    git clone https://github.com/PREDATOR-project/AnyKernel3.git -b Extended-Kernel --depth=1 AnyKernel3
 else
     echo "AnyKernel3 folder is exist, not cloning"
 fi
