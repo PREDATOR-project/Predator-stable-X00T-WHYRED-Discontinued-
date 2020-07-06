@@ -26,7 +26,6 @@ export ARCH=arm64
 export LD_LIBRARY_PATH="/home/loli/install/bin/../lib:$PATH"
 
 # compile plox
-function compile() {
     make -C $(pwd) -j$(nproc) O=out predator_defconfig
     PATH="/home/loli/install/bin:${PATH}"
     make -j$(nproc) O=out ARCH=arm64 \
@@ -44,7 +43,6 @@ function compile() {
    cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3
 }
 # Zipping
-function zipping() {
     cd AnyKernel3 || exit 1
     rm *.zip
     if [ "$is_test" = true ]; then
