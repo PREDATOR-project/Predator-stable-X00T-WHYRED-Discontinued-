@@ -4,20 +4,6 @@
 # Configured for Redmi Note 6 Pro / tulip custom kernel source
 # Simple Local Kernel Build Script
 
-# Clone toolchain ARM64
-if ! [ -d "$PWD/toolchain64" ]; then
-    git clone https://github.com/najahiiii/aarch64-linux-gnu.git -b linaro8-20190402 --depth=1 toolchain64
-else
-    echo "Toolchain ARM64 folder is exist, not cloning"
-fi
-
-# Clone toolchain ARM32
-if ! [ -d "$PWD/toolchain32" ]; then
-    git clone https://github.com/innfinite4evr/android-prebuilts-gcc-linux-x86-arm-arm-eabi-7.2.git -b master --depth=1 toolchain32
-else
-    echo "Toolchain ARM32 folder is exist, not cloning"
-fi
-
 # Clone AnyKernel
 if ! [ -d "$PWD/AnyKernel" ]; then
     git clone https://github.com/PREDATOR-project/AnyKernel3.git -b Extended-Kernel --depth=1 AnyKernel3
@@ -31,41 +17,32 @@ KERN_IMG=$KERNEL_DIR/out/arch/arm64/boot/Image.gz-dtb
 ZIP_DIR=/home/loli/kernel/AnyKernel3
 CLANG_DIR=/home/loli/install
 CONFIG_DIR=$KERNEL_DIR/arch/arm64/configs
-CONFIG=predator_defconfig
 CORES=$(grep -c ^processor /proc/cpuinfo)
 THREAD="-j$CORES"
 
-# Export && compile
+# export
 export KBUILD_BUILD_USER=builder
 export KBUILD_BUILD_HOST=MohammadIqbal
 export ARCH=arm64
 export LD_LIBRARY_PATH="/home/loli/install/bin/../lib:$PATH"
-make -C $(pwd) -j$(nproc) O=out predator_defconfig && PATH="/home/loli/install/bin:${PATH}"
+
+# compile plox
+make -C $(pwd) -j$(nproc) O=out predator_defconfig
+PATH="/home/loli/install/bin:${PATH}"
 make -j$(nproc) O=out ARCH=arm64 \
-CC=clang \
-CLANG_TRIPLE=aarch64-linux-gnu- \
-CROSS_COMPILE=aarch64-linux-gnu- \
-CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-spin[0]="-"
-spin[1]="\\"
-spin[2]="|"
-spin[3]="/"
-while kill -0 $pid &>/dev/null
-do
-	for i in "${spin[@]}"
-	do
-		echo -ne "\b$i"
-		sleep 0.1
-	done
-done
-
-if ! [ -a $KERN_IMG ]; then
-	echo -e "\n(!)Build error, please fix the issue"
-	exit 1
-fi
-
-[[ -z ${ZIP_DIR} ]] && { exit; }
-
+       CC=clang \
+       CLANG_TRIPLE=aarch64-linux-gnu- \
+       CROSS_COMPILE=aarch64-linux-gnu- \
+       CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+O=out \
+            -j60 \
+            -l50 2>&1| tee build.log
+            if ! [ -a "$IMAGE" ]; then
+                finerr
+                exit 1
+            fi
+    cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3
+}
 # Compress to zip file
 cd $ZIP_DIR
 make clean &>/dev/null
