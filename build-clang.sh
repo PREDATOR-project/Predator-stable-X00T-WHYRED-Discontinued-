@@ -35,29 +35,17 @@ CONFIG=predator_defconfig
 CORES=$(grep -c ^processor /proc/cpuinfo)
 THREAD="-j$CORES"
 
-# Export
+# Export && compile
 export KBUILD_BUILD_USER=builder
 export KBUILD_BUILD_HOST=MohammadIqbal
-export ARCH=arm64 && export LD_LIBRARY_PATH="/home/loli/install/bin/../lib:$PATH"
-
-#compile
-PATH="/home/loli/install/bin:${PATH}"
-ARCH=arm64 \
+export ARCH=arm64
+export LD_LIBRARY_PATH="/home/loli/install/bin/../lib:$PATH"
+make -C $(pwd) -j$(nproc) O=out predator_defconfig && PATH="/home/loli/install/bin:${PATH}"
+make -j$(nproc) O=out ARCH=arm64 \
 CC=clang \
 CLANG_TRIPLE=aarch64-linux-gnu- \
 CROSS_COMPILE=aarch64-linux-gnu- \
 CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-
-# Mkdir
-if ! [ -d "$KERNEL_DIR/out" ]; then
-    mkdir -p $KERNEL_DIR/out
-else
-    echo "Out folder is exist, not Make"
-fi
-
-# Start building the kernel
-make  O=out $CONFIG $THREAD &>/dev/null
-make -C $(pwd) -j$(nproc) O=out $THREAD & pid=$!
 spin[0]="-"
 spin[1]="\\"
 spin[2]="|"
