@@ -41,7 +41,7 @@ export LD_LIBRARY_PATH="/home/loli/install/bin/../lib:$PATH"
                exit 1
            fi
    cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3
-}
+
 # Zipping
     cd AnyKernel3 || exit 1
     rm *.zip
@@ -49,4 +49,3 @@ export LD_LIBRARY_PATH="/home/loli/install/bin/../lib:$PATH"
         zip -r9 Predator-TIREX-Kernel-whyred-"${TANGGAL}-${SHA}".zip * -x .git README.md *.zip
     fi #ngentod
     cd .. #well
-}
