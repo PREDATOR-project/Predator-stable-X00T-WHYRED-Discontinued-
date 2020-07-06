@@ -42,7 +42,6 @@ export LD_LIBRARY_PATH="/home/loli/install/bin/../lib:$PATH"
 
 # Zipping
     cd AnyKernel3 || exit 1
-    if [ "$is_test" = true ]; then
-        zip -r9 Predator-TIREX-Kernel-whyred-"${TANGGAL}-${SHA}".zip * -x .git README.md *.zip
+    zip -r9 Predator-TIREX-Kernel-whyred-"${TANGGAL}-${SHA}".zip * -x .git README.md *.zip
     fi #ngentod
     cd .. #well
