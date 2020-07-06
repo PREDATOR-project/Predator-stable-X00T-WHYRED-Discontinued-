@@ -33,8 +33,7 @@ export LD_LIBRARY_PATH="/home/loli/install/bin/../lib:$PATH"
            CLANG_TRIPLE=aarch64-linux-gnu- \
            CROSS_COMPILE=aarch64-linux-gnu- \
            CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-           O=out \
-           -l50 2>&1| tee build.log
+           O=out| tee build.log
            if ! [ -a "$IMAGE" ]; then
                finerr
                exit 1
@@ -43,7 +42,6 @@ export LD_LIBRARY_PATH="/home/loli/install/bin/../lib:$PATH"
 
 # Zipping
     cd AnyKernel3 || exit 1
-    rm *.zip
     if [ "$is_test" = true ]; then
         zip -r9 Predator-TIREX-Kernel-whyred-"${TANGGAL}-${SHA}".zip * -x .git README.md *.zip
     fi #ngentod
