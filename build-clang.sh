@@ -5,7 +5,7 @@
 
 # Clone AnyKernel
 if ! [ -d "$PWD/AnyKernel" ]; then
-    git clone https://github.com/PREDATOR-project/AnyKernel3.git -b BangBrozPhiton-oldcam-oc-oldcam --depth=1 AnyKernel3
+    git clone https://github.com/PREDATOR-project/AnyKernel3.git -b Phiton-oldcam-oc --depth=1 AnyKernel3
 else
     echo "AnyKernel3 folder is exist, not cloning"
 fi
