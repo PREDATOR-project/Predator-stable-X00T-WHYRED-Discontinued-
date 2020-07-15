@@ -1317,7 +1317,7 @@
 		qcom,core-dev-table =
 			< 902400 762 >,
 			< 1401600 2086 >,
-			< 1881600 3879 >;
+			< 1843200 3879 >;
 	};
 
 	devfreq_memlat_4: qcom,arm-memlat-mon-4 {
