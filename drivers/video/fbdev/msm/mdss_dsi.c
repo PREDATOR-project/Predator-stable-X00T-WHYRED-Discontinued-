@@ -3559,7 +3559,7 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 		if (ctrl_pdata->off_cmds.link_state == DSI_LP_MODE)
 			rc = mdss_dsi_blank(pdata, power_state);
 		rc = mdss_dsi_off(pdata, power_state);
-		mutex_unlock(&ctrl_pdata->dsi_ctrl_mutex);
+		atomic_set(&ctrl_pdata->disp_is_on, 0);
 		trigger_cpufreq_underclock();
 		break;
 	case MDSS_EVENT_DISABLE_PANEL:
