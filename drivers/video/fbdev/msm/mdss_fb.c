@@ -76,9 +76,6 @@
 #define EXPORT_COMPAT(x)
 #endif
 
-int backlight_min = 0;
-module_param(backlight_min, int, 0644);
-
 //Easily enable sRGB with module param
 //Part of the sRGB reset fix!
 int srgb_enabled = 0;
