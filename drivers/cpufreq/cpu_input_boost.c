@@ -38,6 +38,18 @@ static struct boost_drv boost_drv_g __read_mostly = {
 	.boost_waitq = __WAIT_QUEUE_HEAD_INITIALIZER(boost_drv_g.boost_waitq)
 };
 
+static unsigned int get_screen_on_freq(struct cpufreq_policy *policy)
+{
+	unsigned int freq;
+
+	if (cpumask_test_cpu(policy->cpu, cpu_lp_mask))
+		freq = 1536000;
+	else
+		freq = 1747200;
+
+	return min(freq, policy->max);
+}
+
 static unsigned int get_input_boost_freq(struct cpufreq_policy *policy)
 {
 	unsigned int freq;
@@ -183,6 +195,10 @@ static int cpu_notifier_cb(struct notifier_block *nb, unsigned long action,
 	/* Unboost when the screen is off */
 	if (test_bit(SCREEN_OFF, &b->state)) {
 		policy->min = policy->cpuinfo.min_freq;
+		return NOTIFY_OK;
+	} else {
+		policy->min = get_screen_on_freq(policy);
+		boosting = false;
 		return NOTIFY_OK;
 	}
 
