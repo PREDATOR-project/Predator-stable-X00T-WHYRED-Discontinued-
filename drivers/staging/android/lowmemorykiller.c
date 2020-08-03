@@ -265,7 +265,6 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 
 	selected_oom_score_adj = min_score_adj;
 
-	cpu_input_boost_kick_max(BOOST_DURATION_MS);
 	devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, BOOST_DURATION_MS);
 	rcu_read_lock();
 	for_each_process(tsk) {
