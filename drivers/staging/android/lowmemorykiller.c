@@ -46,7 +46,6 @@
 #include <linux/proc_fs.h>
 #include <linux/slab.h>
 #include <linux/poll.h>
-#include <linux/cpu_input_boost.h>
 #include <linux/devfreq_boost.h>
 
 #define BOOST_DURATION_MS (250)
