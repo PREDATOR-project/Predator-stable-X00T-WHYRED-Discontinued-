@@ -416,16 +416,6 @@ static void mdss_mdp_kcal_check_pcc(struct kcal_lut_data *lut_data)
 		lut_data->minimum : lut_data->blue;
 }
 
-static void mdss_mdp_kcal_check_pcc(struct kcal_lut_data *lut_data)
-{
-	lut_data->red = lut_data->red < lut_data->minimum ?
-		lut_data->minimum : lut_data->red;
-	lut_data->green = lut_data->green < lut_data->minimum ?
-		lut_data->minimum : lut_data->green;
-	lut_data->blue = lut_data->blue < lut_data->minimum ?
-		lut_data->minimum : lut_data->blue;
-}
-
 static ssize_t kcal_store(struct device *dev, struct device_attribute *attr,
 						const char *buf, size_t count)
 {
