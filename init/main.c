@@ -129,6 +129,40 @@ static char *initcall_command_line;
 static char *execute_command;
 static char *ramdisk_execute_command;
 
+static unsigned int android_version = 9;
+
+static int __init set_android_version(char *val)
+{
+	get_option(&val, &android_version);
+	return 0;
+}
+__setup("androidboot.version=", set_android_version);
+
+unsigned int get_android_version(void)
+{
+	return android_version;
+}
+
+bool miuirom = true;
+extern int srgb_enabled;
+static int __init set_miui_rom(int *val)
+{
+	int temp;
+
+	get_option(&val, &temp);
+
+	if (temp) {
+		miuirom = true;
+		srgb_enabled = 1;
+	} else {
+		miuirom = false;
+		srgb_enabled = 0;
+	}
+
+	return 0;
+}
+__setup("androidboot.miui=", set_miui_rom);
+
 /*
  * Used to generate warnings if static_key manipulation functions are used
  * before jump_label_init is called.
