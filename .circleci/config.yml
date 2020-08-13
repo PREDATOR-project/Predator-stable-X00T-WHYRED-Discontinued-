@@ -11,9 +11,9 @@ jobs:
            git clone https://github.com/PREDATOR-project/Predator-stable-X00T-WHYRED.git -b whyred-eas-oc --depth=1 kernel
            cd kernel
            git clone https://github.com/PREDATOR-project/myscripts.git -b master
-           chmod +x myscripts/stable-setup.sh
+           chmod +x myscripts/envsetup.sh
            chmod +x myscripts/build-whyred-stable-oc.sh
-           source ./myscripts/stable-setup.sh
+           source ./myscripts/envsetup.sh
            ./myscripts/build-whyred-stable-oc.sh
 workflows:
   version: 2.1
