@@ -11,10 +11,10 @@ jobs:
            git clone https://github.com/PREDATOR-project/PREDATOR_kernel_asus_mpm1.git -b ten-eas-oc --depth=1 kernel
            cd kernel
            git clone https://github.com/PREDATOR-project/myscripts.git -b master
-           chmod +x myscripts/envsetup.sh
-           chmod +x myscripts/circle.sh
-           source ./myscripts/envsetup.sh
-           ./myscripts/circle.sh
+           chmod +x myscripts/setup-test.sh
+           chmod +x myscripts/build-X00T-stable-oc.sh
+           source ./myscripts/setup-test.sh
+           ./myscripts/build-X00T-stable-oc.sh
 workflows:
   version: 2.1
   cooking:
