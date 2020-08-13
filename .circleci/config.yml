@@ -12,9 +12,9 @@ jobs:
            cd kernel
            git clone https://github.com/PREDATOR-project/myscripts.git -b master
            chmod +x myscripts/envsetup.sh
-           chmod +x myscripts/circle.sh
+           chmod +x myscripts/build-X00T-stable.sh
            source ./myscripts/envsetup.sh
-           ./myscripts/circle.sh
+           ./myscripts/build-X00T-stable.sh
 workflows:
   version: 2.1
   cooking:
