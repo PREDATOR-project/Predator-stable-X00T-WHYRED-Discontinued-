@@ -151,6 +151,7 @@ static int set_cpu_max_freq(const char *buf, const struct kernel_param *kp)
 	struct cpu_status *i_cpu_stats;
 	struct cpufreq_policy policy;
 	cpumask_var_t limit_mask;
+	int ret;
 
 	if (touchboost == 0)
 		return 0;
@@ -186,9 +187,11 @@ static int set_cpu_max_freq(const char *buf, const struct kernel_param *kp)
 		if (cpufreq_get_policy(&policy, i))
 			continue;
 
-		if (cpu_online(i) && (policy.max != i_cpu_stats->max))
-			cpufreq_update_policy(i);
-
+		if (cpu_online(i) && (policy.max != i_cpu_stats->max)) {
+			ret = cpufreq_update_policy(i);
+			if (ret)
+				continue;
+		}
 		for_each_cpu(j, policy.related_cpus)
 			cpumask_clear_cpu(j, limit_mask);
 	}
