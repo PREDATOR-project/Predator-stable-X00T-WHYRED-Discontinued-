@@ -34,7 +34,7 @@ enum tp_mode {
 };
 
 /* Config */
-static phys_addr_t fb_phys_addr = 0x9c000000;
+static phys_addr_t fb_phys_addr = 0x9d400000;
 static size_t fb_max_size = 0x02400000;
 /* Pixel format is assumed to be ARGB_8888 */
 static int fb_width = 1080;
