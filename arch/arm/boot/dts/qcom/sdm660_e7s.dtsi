@@ -1523,15 +1523,15 @@
 			< 1747200 >,
 			< 1804800 >,
 			< 1958400 >,
-			< l2150400 >,
-			< 2l208000 >,
+			< 2150400 >,
+			< 2208000 >,
 			< 2457600 >;
 	};
 
 	sdhc_1: sdhci@c0c4000 {
 		compatible = "qcom,sdhci-msm-v5";
 		reg = <0xc0c4000 0x1000>, <0xc0c5000 0x1000>;
-		reg-names = l"hc_mem", "cmdq_mem";
+		reg-names = "hc_mem", "cmdq_mem";
 
 		interrupts = <0 110 0>, <0 112 0>;
 		interrupt-names = "hc_irq", "pwr_irq";
