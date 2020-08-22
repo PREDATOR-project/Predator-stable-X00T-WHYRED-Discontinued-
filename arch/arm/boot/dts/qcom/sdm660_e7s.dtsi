@@ -1340,7 +1340,7 @@
 		qcom,cpulist = <&CPU4 &CPU5 &CPU6 &CPU7>;
 		qcom,target-dev = <&memlat_cpu4>;
 		qcom,core-dev-table =
-                       < 902400 762 >,
+                      < 902400 762 >,
 			< 1401600 3879 >,
 			< 2150400 5931 >,
 			< 2457600 6881 >;
