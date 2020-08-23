@@ -38,7 +38,7 @@ static phys_addr_t fb_phys_addr = 0x9c000000;
 static size_t fb_max_size = 0x02400000;
 /* Pixel format is assumed to be ARGB_8888 */
 static int fb_width = 1080;
-static int fb_height = 2340;
+static int fb_height = 2160;
 static enum tp_mode mode = MODE_PAINT;
 module_param(mode, int, 0644);
 /* Brush size in pixels - odd = slower but centered, even = faster but not centered */
