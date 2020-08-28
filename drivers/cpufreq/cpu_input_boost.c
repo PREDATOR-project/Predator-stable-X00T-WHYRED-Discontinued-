@@ -42,7 +42,7 @@ static unsigned int get_input_boost_freq(struct cpufreq_policy *policy)
 {
 	unsigned int freq;
 
-	if (cpumask_test_cpu(policy->cpu, cpu_lp_mask))
+	if (cpumask_test_cpu(policy->cpu, cpu_cpu_mask))
 		freq = CONFIG_INPUT_BOOST_FREQ_LP;
 	else
 		freq = CONFIG_INPUT_BOOST_FREQ_PERF;
@@ -54,7 +54,7 @@ static unsigned int get_max_boost_freq(struct cpufreq_policy *policy)
 {
 	unsigned int freq;
 
-	if (cpumask_test_cpu(policy->cpu, cpu_lp_mask))
+	if (cpumask_test_cpu(policy->cpu, cpu_cpu_mask))
 		freq = CONFIG_MAX_BOOST_FREQ_LP;
 	else
 		freq = CONFIG_MAX_BOOST_FREQ_PERF;
@@ -68,9 +68,9 @@ static void update_online_cpu_policy(void)
 
 	/* Only one CPU from each cluster needs to be updated */
 	get_online_cpus();
-	cpu = cpumask_first_and(cpu_lp_mask, cpu_online_mask);
+	cpu = cpumask_first_and(cpu_cpu_mask, cpu_online_mask);
 	cpufreq_update_policy(cpu);
-	cpu = cpumask_first_and(cpu_perf_mask, cpu_online_mask);
+	cpu = cpumask_first_and(cpu_cpu_mask, cpu_online_mask);
 	cpufreq_update_policy(cpu);
 	put_online_cpus();
 }
@@ -336,7 +336,7 @@ static int __init cpu_input_boost_init(void)
 		goto unregister_handler;
 	}
 
-	thread = kthread_run_perf_critical(cpu_boost_thread, b, "cpu_boostd");
+	thread = (cpu_boost_thread, b, "cpu_boostd");
 	if (IS_ERR(thread)) {
 		ret = PTR_ERR(thread);
 		pr_err("Failed to start CPU boost thread, err: %d\n", ret);
