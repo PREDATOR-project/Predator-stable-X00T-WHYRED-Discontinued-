@@ -1,6 +1,6 @@
 /*
  * drivers/power/autocut_charger.c
- * drivers/power/supply/autocut_charger.c
+ * drivers/power/supply/qcom/autocut_charger.c
  *
  * AutoCut Charger.
  *
