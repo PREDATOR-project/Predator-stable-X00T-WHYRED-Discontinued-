@@ -48,7 +48,6 @@
 #include <linux/dma-buf.h>
 #include <linux/mdss_io_util.h>
 #include <linux/wakelock.h>
-#include <linux/devfreq_boost.h>
 #include <sync.h>
 #include <sw_sync.h>
 
