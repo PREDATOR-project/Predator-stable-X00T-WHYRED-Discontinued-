@@ -90,7 +90,7 @@
 		qcom,mdss-dsi-lp11-init;
 		//qcom,mdss-dsi-init-delay-us = <10000>;
 		/* Huaqin add for ESD check by xieguoqiang 20170203 start */
-		qcom,esd-check-enabled;
+		/*qcom,esd-check-enabled;*/
                 qcom,mdss-dsi-panel-hdr-enabled;
                 qcom,mdss-dsi-panel-hdr-color-primaries = <14500 15500 32000
                         17000 15500 30000 8000 3000>;
