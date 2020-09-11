@@ -98,7 +98,7 @@ extern bool lcd_suspend_flag;
 bool backlight_dimmer = false;
 module_param(backlight_dimmer, bool, 0644);
 
-int backlight_min = 20;
+int backlight_min = 0;
 module_param(backlight_min, int, 0644);
 
 #ifdef CONFIG_MACH_ASUS_X00T
