@@ -113,60 +113,6 @@ static FORCE_INLINE int LZ4_decompress_generic(
 		unsigned int const token = *ip++;
 
 		length = token>>ML_BITS;
-		/*
-		 * A two-stage shortcut for the most common case:
-		 * 1) If the literal length is 0..14, and there is enough
-		 * space, enter the shortcut and copy 16 bytes on behalf
-		 * of the literals (in the fast mode, only 8 bytes can be
-		 * safely copied this way).
-		 * 2) Further if the match length is 4..18, copy 18 bytes
-		 * in a similar manner; but we ensure that there's enough
-		 * space in the output for those 18 bytes earlier, upon
-		 * entering the shortcut (in other words, there is a
-		 * combined check for both stages).
-		 */
-		if ((endOnInput ? length != RUN_MASK : length <= 8)
-		   /*
-		    * strictly "less than" on input, to re-enter
-		    * the loop with at least one byte
-		    */
-		   && likely((endOnInput ? ip < shortiend : 1) &
-			     (op <= shortoend))) {
-			/* Copy the literals */
-			LZ4_memcpy(op, ip, endOnInput ? 16 : 8);
-			op += length; ip += length;
-
-			/*
-			 * The second stage:
-			 * prepare for match copying, decode full info.
-			 * If it doesn't work out, the info won't be wasted.
-			 */
-			length = token & ML_MASK; /* match length */
-			offset = LZ4_readLE16(ip);
-			ip += 2;
-			match = op - offset;
-			assert(match <= op); /* check overflow */
-
-			/* Do not deal with overlapping matches. */
-			if ((length != ML_MASK) &&
-			    (offset >= 8) &&
-			    (dict == withPrefix64k || match >= lowPrefix)) {
-				/* Copy the match. */
-				LZ4_memcpy(op + 0, match + 0, 8);
-				LZ4_memcpy(op + 8, match + 8, 8);
-				LZ4_memcpy(op + 16, match + 16, 2);
-				op += length + MINMATCH;
-				/* Both stages worked, load the next token. */
-				continue;
-			}
-
-			/*
-			 * The second stage didn't work out, but the info
-			 * is ready. Propel it right to the point of match
-			 * copying.
-			 */
-			goto _copy_match;
-		}
 
 		if (length == RUN_MASK) {
 			unsigned int s;
@@ -235,7 +181,7 @@ static FORCE_INLINE int LZ4_decompress_generic(
 				}
 			}
 
-			LZ4_memcpy(op, ip, length);
+			memcpy(op, ip, length);
 			ip += length;
 			op += length;
 			/* Necessarily EOF, due to parsing restrictions */
@@ -328,33 +274,6 @@ static FORCE_INLINE int LZ4_decompress_generic(
 		/* copy match within block */
 		cpy = op + length;
 
-<<<<<<< HEAD
-=======
-		/*
-		 * partialDecoding :
-		 * may not respect endBlock parsing restrictions
-		 */
-		assert(op <= oend);
-		if (partialDecoding &&
-		    (cpy > oend - MATCH_SAFEGUARD_DISTANCE)) {
-			size_t const mlen = min(length, (size_t)(oend - op));
-			const BYTE * const matchEnd = match + mlen;
-			BYTE * const copyEnd = op + mlen;
-
-			if (matchEnd > op) {
-				/* overlap copy */
-				while (op < copyEnd)
-					*op++ = *match++;
-			} else {
-				LZ4_memcpy(op, match, mlen);
-			}
-			op = copyEnd;
-			if (op == oend)
-				break;
-			continue;
-		}
-
->>>>>>> 36f1a7187484... lz4: fix kernel decompression speed
 		if (unlikely(offset < 8)) {
 			const int dec64 = dec64table[offset];
 
@@ -362,15 +281,9 @@ static FORCE_INLINE int LZ4_decompress_generic(
 			op[1] = match[1];
 			op[2] = match[2];
 			op[3] = match[3];
-<<<<<<< HEAD
 			match += dec32table[offset];
 			memcpy(op + 4, match, 4);
 			match -= dec64;
-=======
-			match += inc32table[offset];
-			LZ4_memcpy(op + 4, match, 4);
-			match -= dec64table[offset];
->>>>>>> 36f1a7187484... lz4: fix kernel decompression speed
 		} else {
 			LZ4_copy8(op, match);
 			match += 8;
