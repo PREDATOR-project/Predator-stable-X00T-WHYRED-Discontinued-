@@ -328,8 +328,6 @@ static FORCE_INLINE int LZ4_decompress_generic(
 		/* copy match within block */
 		cpy = op + length;
 
-<<<<<<< HEAD
-=======
 		/*
 		 * partialDecoding :
 		 * may not respect endBlock parsing restrictions
@@ -354,7 +352,6 @@ static FORCE_INLINE int LZ4_decompress_generic(
 			continue;
 		}
 
->>>>>>> 36f1a7187484... lz4: fix kernel decompression speed
 		if (unlikely(offset < 8)) {
 			const int dec64 = dec64table[offset];
 
@@ -362,15 +359,9 @@ static FORCE_INLINE int LZ4_decompress_generic(
 			op[1] = match[1];
 			op[2] = match[2];
 			op[3] = match[3];
-<<<<<<< HEAD
-			match += dec32table[offset];
-			memcpy(op + 4, match, 4);
-			match -= dec64;
-=======
 			match += inc32table[offset];
 			LZ4_memcpy(op + 4, match, 4);
 			match -= dec64table[offset];
->>>>>>> 36f1a7187484... lz4: fix kernel decompression speed
 		} else {
 			LZ4_copy8(op, match);
 			match += 8;
