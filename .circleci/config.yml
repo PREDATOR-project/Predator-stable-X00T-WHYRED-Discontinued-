@@ -11,9 +11,9 @@ jobs:
            git clone https://github.com/PREDATOR-project/Predator-stable-X00T-WHYRED.git -b test-whyred --depth=1 kernel
            cd kernel
            git clone https://github.com/PREDATOR-project/myscripts.git -b master
-           chmod +x myscripts/gcc-setup.sh
+           chmod +x myscripts/envsetup.sh
            chmod +x myscripts/build-test.sh
-           source ./myscripts/gcc-setup.sh
+           source ./myscripts/envsetup.sh
            ./myscripts/build-test.sh
 workflows:
   version: 2.1
