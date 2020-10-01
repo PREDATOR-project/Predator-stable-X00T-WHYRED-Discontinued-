@@ -1514,7 +1514,7 @@ static int wcd_cpe_get_cal_index(int32_t cal_type)
 		cal_index = WCD_CPE_LSM_CAL_AFE;
 	else if (cal_type == ULP_LSM_CAL_TYPE)
 		cal_index = WCD_CPE_LSM_CAL_LSM;
-	else if (cal_type == ULP_LSM_TOPOLOGY_ID_CAL_TYPE)
+	else if (cal_type == LSM_TOPOLOGY_CAL_TYPE)
 		cal_index = WCD_CPE_LSM_CAL_TOPOLOGY_ID;
 	else
 		pr_err("%s: invalid cal_type %d\n",
