@@ -684,6 +684,13 @@ ifdef CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE
 KBUILD_CFLAGS	+= -O3
 else
 KBUILD_CFLAGS	+= -O2
+ifeq ($(cc-name),gcc)
+KBUILD_CFLAGS	+= -O3
+KBUILD_CFLAGS	+= -mcpu=cortex-a73.cortex-a53
+KBUILD_AFLAGS	+= -mcpu=cortex-a73.cortex-a53
+ifeq ($(cc-name),clang)
+KBUILD_CFLAGS   += -O3
+endif
 endif
 endif
 
