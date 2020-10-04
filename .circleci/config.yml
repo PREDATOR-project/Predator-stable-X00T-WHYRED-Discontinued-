@@ -11,9 +11,9 @@ jobs:
            git clone https://github.com/PREDATOR-project/Predator-stable-X00T-WHYRED.git -b X00T-eas --depth=1 kernel
            cd kernel
            git clone https://github.com/PREDATOR-project/myscripts.git -b master
-           chmod +x myscripts/setup-test.sh
+           chmod +x myscripts/gcc-setup-9.sh
            chmod +x myscripts/build-X00T-stable.sh
-           source ./myscripts/setup-test.sh
+           source ./myscripts/gcc-setup-9.sh
            ./myscripts/build-X00T-stable.sh
 workflows:
   version: 2.1
