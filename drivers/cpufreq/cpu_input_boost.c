@@ -46,9 +46,9 @@ static unsigned int get_screen_on_freq(struct cpufreq_policy *policy)
 	unsigned int freq;
 
 	if (cpumask_test_cpu(policy->cpu, cpu_lp_mask))
-		freq = 1612800;
+		freq = 300000;
 	else
-		freq = 1843200;
+		freq = 300000;
 
 	return min(freq, policy->max);
 }
